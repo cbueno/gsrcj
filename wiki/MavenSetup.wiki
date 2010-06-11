@@ -6,7 +6,7 @@
 If you want to use the *gsrcj* library within your maven project, add the following lines to your _pom.xml_:
 
 = Repository =
-Insert the following into the *<repositories> ... </repositories>* section:
+Insert the following into the *repositories* tag:
 {{{
 <repository>
 	<snapshots>
@@ -30,7 +30,7 @@ Insert the following into the *<repositories> ... </repositories>* section:
 }}}
 
 = Dependency =
-Insert the following into the *<dependencies> ... </dependencies>* section:
+Insert the following into the *dependencies* tag:
 {{{
 <dependency>
 	<version>0.5-SNAPSHOT</version>
