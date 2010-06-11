@@ -1,3 +1,13 @@
+/*******************************************************************************
+ * Copyright (c) 2010 Stefan A. Tzeggai
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the GNU Public License v3.0
+ * which accompanies this distribution, and is available at
+ * http://www.gnu.org/licenses/old-licenses/gpl-3.0.html
+ * 
+ * Contributors:
+ *     Stefan A. Tzeggai - initial API and implementation
+ ******************************************************************************/
 package org.geopublishing;
 
 import java.io.IOException;
@@ -13,29 +23,81 @@ import sun.misc.BASE64Encoder;
 
 public class GsRest {
 
-	public enum HttpMethod {
-		POST, GET, PUT, DELETE;
-	}
+	public final String METHOD_POST = "POST";
+	public final String METHOD_GET = "GET";
+	public final String METHOD_PUT = "PUT";
+	public final String METHOD_DELETE = "DELETE";
 
-	private final String password;
-	private final String gsBaseUrl;
-	private final String username;
+	private String password;
+	private String username;
 	private String restUrl;
 
 	/**
+	 * Creates a {@link GsRest} instance to work on a Geoserver which needs
+	 * authorization (default in 2.0.2).
+	 * 
 	 * @param gsBaseUrl
-	 *            The base URL of geoserver. 
+	 *            The base URL of Geoserver. Usually ending with "../geoserver"
 	 * @param username
+	 *            plain text username
 	 * @param password
+	 *            plain text password
 	 */
 	public GsRest(String gsBaseUrl, String username, String password) {
-		
-		if (!gsBaseUrl.endsWith("/")) gsBaseUrl += "/"; 
-		this.gsBaseUrl = gsBaseUrl;
-		
+
+		if (!gsBaseUrl.endsWith("/"))
+			gsBaseUrl += "/";
+
 		this.restUrl = gsBaseUrl + "rest";
 		this.username = username;
 		this.password = password;
+	}
+
+	/**
+	 * Creates a {@link GsRest} instance to work on a Geoserver that allows
+	 * anonymous read- and write access.
+	 * 
+	 * @param gsBaseUrl
+	 *            The base URL of Geoserver. Usually ending with "../geoserver"
+	 */
+	public GsRest(String gsBaseUrl) {
+
+		if (!gsBaseUrl.endsWith("rest")) {
+			if (!gsBaseUrl.endsWith("/"))
+				gsBaseUrl += "/";
+			this.restUrl = gsBaseUrl + "rest";
+		}
+
+		this.username = null;
+		this.password = null;
+	}
+
+	/**
+	 * @return <code>true</code> if authorization is used for requests
+	 */
+	public boolean isAuthorization() {
+		return password != null && username != null;
+	}
+
+	/**
+	 * Tell this {@link GsRest} instance to use authorization
+	 * 
+	 * @param username
+	 *            cleartext username
+	 * @param password
+	 *            cleartext password
+	 */
+	public void enableAuthorization(String username, String password) {
+		this.password = password;
+		this.username = username;
+	}
+
+	/**
+	 * Tell this instance of {@link GsRest} to not use authorization
+	 */
+	public void disableAuthorization() {
+		this.password = null;
+		this.username = null;
 	}
 
 	/**
@@ -53,16 +115,15 @@ public class GsRest {
 	 * @throws IOException
 	 * @return null, or response of server
 	 */
-	public int sendRESTint(HttpMethod method, String urlEncoded,
-			String postData, String contentType, String accept)
-			throws IOException {
+	public int sendRESTint(String method, String urlEncoded, String postData,
+			String contentType, String accept) throws IOException {
 		HttpURLConnection connection = sendREST(method, urlEncoded, postData,
 				contentType, accept);
 
 		return connection.getResponseCode();
 	}
 
-	public String sendRESTstring(HttpMethod method, String urlEncoded,
+	public String sendRESTstring(String method, String urlEncoded,
 			String postData, String contentType, String accept)
 			throws IOException {
 		HttpURLConnection connection = sendREST(method, urlEncoded, postData,
@@ -84,13 +145,13 @@ public class GsRest {
 		}
 	}
 
-	private HttpURLConnection sendREST(HttpMethod method, String urlEncoded,
+	private HttpURLConnection sendREST(String method, String urlEncoded,
 			String postData, String contentType, String accept)
 			throws MalformedURLException, IOException, ProtocolException {
-		boolean doOut = method != HttpMethod.DELETE && postData != null;
+		boolean doOut = METHOD_DELETE.equals(method) && postData != null;
 		// boolean doIn = true; // !doOut
 
-		String link = gsBaseUrl + "rest" + urlEncoded;
+		String link = restUrl + urlEncoded;
 		URL url = new URL(link);
 		HttpURLConnection connection = (HttpURLConnection) url.openConnection();
 		connection.setDoOutput(doOut);
@@ -101,15 +162,18 @@ public class GsRest {
 		if (accept != null && !"".equals(accept)) {
 			connection.setRequestProperty("Accept", accept);
 		}
-		String userPasswordEncoded = new BASE64Encoder()
-				.encode((username + ":" + password).getBytes());
 
 		connection.setRequestMethod(method.toString());
 		// type XML
 		connection.setRequestProperty("Content-Type", contentType);
-		// Basic Auth
-		connection.setRequestProperty("Authorization", "Basic "
-				+ userPasswordEncoded);
+
+		if (isAuthorization()) {
+			String userPasswordEncoded = new BASE64Encoder().encode((username
+					+ ":" + password).getBytes());
+			// Basic Auth
+			connection.setRequestProperty("Authorization", "Basic "
+					+ userPasswordEncoded);
+		}
 
 		if (connection.getDoOutput()) {
 			Writer writer = new OutputStreamWriter(connection.getOutputStream());
@@ -122,14 +186,14 @@ public class GsRest {
 	}
 
 	public boolean deleteWorkspace(String workspaceName) throws IOException {
-		return 201 != sendRESTint(HttpMethod.DELETE, "/workspaces",
+		return 201 != sendRESTint(METHOD_DELETE, "/workspaces",
 				"<workspace><name>" + workspaceName + "</name></workspace>",
 				"application/xml", "application/xml");
 
 	}
 
 	public boolean createWorkspace(String workspaceName) throws IOException {
-		return 201 == sendRESTint(HttpMethod.POST, "/workspaces",
+		return 201 == sendRESTint(METHOD_POST, "/workspaces",
 				"<workspace><name>" + workspaceName + "</name></workspace>",
 				"application/xml", "application/xml");
 	}
@@ -159,18 +223,18 @@ public class GsRest {
 				+ "</name><enabled>true</enabled><connectionParameters><host>"
 				+ host + "</host><port>" + port + "</port><database>" + db
 				+ "</database><user>" + user + "</user><passwd>" + pwd
-				+ "</passwd><dbtype>" + dbType
-				+ "</dbtype><namespace>"+dsNamespace+"</namespace></connectionParameters></dataStore>";
+				+ "</passwd><dbtype>" + dbType + "</dbtype><namespace>"
+				+ dsNamespace
+				+ "</namespace></connectionParameters></dataStore>";
 
-		int returnCode = sendRESTint(HttpMethod.POST, "/workspaces/"
-				+ workspace + "/datastores", xml, "application/xml",
-				"application/xml");
+		int returnCode = sendRESTint(METHOD_POST, "/workspaces/" + workspace
+				+ "/datastores", xml, "application/xml", "application/xml");
 		return 201 == returnCode;
 	}
 
 	public String getDatastore(String wsName, String dsName)
 			throws MalformedURLException, ProtocolException, IOException {
-		return sendRESTstring(HttpMethod.GET, "/workspaces/" + wsName
+		return sendRESTstring(METHOD_GET, "/workspaces/" + wsName
 				+ "/datastores/" + dsName, null, "application/xml",
 				"application/xml");
 	}
@@ -179,16 +243,16 @@ public class GsRest {
 			throws IOException {
 		String xml = "<featureType><name>" + ftName + "</name><title>" + ftName
 				+ "</title></featureType>";
-		int sendRESTint = sendRESTint(HttpMethod.POST, "/workspaces/" + wsName
+		int sendRESTint = sendRESTint(METHOD_POST, "/workspaces/" + wsName
 				+ "/datastores/" + dsName + "/featuretypes", xml,
 				"application/xml", "application/xml");
 		return 201 == sendRESTint;
 	}
 
-	public String getFeatureType(String wsname, String dsname, String ftName)
+	public String getFeatureType(String wsName, String dsName, String ftName)
 			throws IOException {
-		return sendRESTstring(HttpMethod.GET, "/workspaces/" + wsname
-				+ "/datastores/" + dsname + "/featuretypes/" + ftName, null,
+		return sendRESTstring(METHOD_GET, "/workspaces/" + wsName
+				+ "/datastores/" + dsName + "/featuretypes/" + ftName, null,
 				"application/xml", "application/xml");
 	}
 
