@@ -1,4 +1,4 @@
-package cpa.keck.gsrest;
+package org.geopublishing;
 
 import java.io.IOException;
 import java.io.InputStream;
