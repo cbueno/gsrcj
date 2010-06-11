@@ -160,7 +160,7 @@ public class GsRest {
 				+ host + "</host><port>" + port + "</port><database>" + db
 				+ "</database><user>" + user + "</user><passwd>" + pwd
 				+ "</passwd><dbtype>" + dbType
-				+ "</dbtype></connectionParameters></dataStore>";
+				+ "</dbtype><namespace>"+dsNamespace+"</namespace></connectionParameters></dataStore>";
 
 		int returnCode = sendRESTint(HttpMethod.POST, "/workspaces/"
 				+ workspace + "/datastores", xml, "application/xml",
