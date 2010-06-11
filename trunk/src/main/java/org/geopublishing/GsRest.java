@@ -18,6 +18,10 @@ import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.ProtocolException;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import sun.misc.BASE64Encoder;
 
@@ -145,13 +149,13 @@ public class GsRest {
 		}
 	}
 
-	private HttpURLConnection sendREST(String method, String urlEncoded,
+	private HttpURLConnection sendREST(String method, String urlAppend,
 			String postData, String contentType, String accept)
 			throws MalformedURLException, IOException, ProtocolException {
-		boolean doOut = METHOD_DELETE.equals(method) && postData != null;
+		boolean doOut = !METHOD_DELETE.equals(method) && postData != null;
 		// boolean doIn = true; // !doOut
 
-		String link = restUrl + urlEncoded;
+		String link = restUrl + urlAppend;
 		URL url = new URL(link);
 		HttpURLConnection connection = (HttpURLConnection) url.openConnection();
 		connection.setDoOutput(doOut);
@@ -170,7 +174,6 @@ public class GsRest {
 		if (isAuthorization()) {
 			String userPasswordEncoded = new BASE64Encoder().encode((username
 					+ ":" + password).getBytes());
-			// Basic Auth
 			connection.setRequestProperty("Authorization", "Basic "
 					+ userPasswordEncoded);
 		}
@@ -185,17 +188,190 @@ public class GsRest {
 		return connection;
 	}
 
-	public boolean deleteWorkspace(String workspaceName) throws IOException {
-		return 201 != sendRESTint(METHOD_DELETE, "/workspaces",
-				"<workspace><name>" + workspaceName + "</name></workspace>",
-				"application/xml", "application/xml");
+	/**
+	 * Deletes an empty workspace. If the workspace is not empty or doesn't
+	 * exist <code>false</code> is returned.
+	 * 
+	 * @param wsName
+	 *            name of the workspace to delete
+	 */
+	public boolean deleteWorkspace(String wsName) throws IOException {
+		return deleteWorkspace(wsName, false);
+	}
 
+	/**
+	 * Deletes a workspace recursively. If the workspace doesn't exist it thorws
+	 * an {@link IOException}. <code>false</code> is returned if the workspace
+	 * is not empty.
+	 * 
+	 * @param wsName
+	 *            name of the workspace to delete, including all content.
+	 */
+	public boolean deleteWorkspace(String wsName, boolean recursive)
+			throws IOException {
+
+		if (recursive) {
+
+			// Check if the workspace exists and delete all datastores
+			// recusively
+			String datastoresXml = sendRESTstring(METHOD_GET, "/workspaces/"
+					+ wsName + "/datastores", null);
+			List<String> datastores = parseXmlWithregEx(datastoresXml,
+					datastoreNameRegEx);
+			for (String dsName : datastores) {
+				if (!deleteDatastore(wsName, dsName, true))
+					throw new IOException("Could not delete Datastore "
+							+ dsName + " in workspace " + wsName);
+			}
+
+			// TODO NOT IMPLEMENETED YET
+			// String coveragestoresXml = sendRESTstring(METHOD_GET,
+			// "/workspaces/"
+			// + wsName + "/coveragestores", null);
+			// List<String> coveragestores =
+			// parseCoveragestoresXml(coveragestoresXml);
+		}
+
+		return 200 == sendRESTint(METHOD_DELETE, "/workspaces/" + wsName, null,
+				"application/xml", "application/xml");
+	}
+
+	/**
+	 * Deletes a datastore
+	 * 
+	 * @param wsName
+	 *            name of the workspace
+	 * @param dsName
+	 *            name of the datastore
+	 * @param recusively
+	 *            delete all contained featureytpes also
+	 * @throws IOException
+	 */
+	private boolean deleteDatastore(String wsName, String dsName,
+			boolean recusively) throws IOException {
+		if (recusively == true) {
+			List<String> layerNames = getLayersUsingDatastore(wsName, dsName);
+
+			for (String lName : layerNames) {
+				if (!deleteLayer(lName))
+					throw new RuntimeException("Could not delete layer "
+							+ wsName + ":" + dsName + ":" + lName);
+			}
+
+			List<String> ftNames = getFeatureTypes(wsName, dsName);
+			//
+			for (String ftName : ftNames) {
+				// it happens that this returns false, e.g maybe for
+				// notpublished featuretypes!?
+				deleteFeatureType(wsName, dsName, ftName);
+			}
+		}
+		return 200 == sendRESTint(METHOD_DELETE, "/workspaces/" + wsName
+				+ "/datastores/" + dsName, null);
+	}
+
+	private boolean deleteLayer(String lName) throws IOException {
+		int result = sendRESTint(METHOD_DELETE, "/layers/" + lName, null);
+		return result == 200;
+	}
+
+	/**
+	 * Returns a {@link List} of all layer names
+	 * 
+	 * @param wsName
+	 */
+	public List<String> getLayerNames() throws IOException {
+		String xml = sendRESTstring(METHOD_GET, "/layers", null);
+		return parseXmlWithregEx(xml, layerNamesRegExPattern);
+	}
+
+	final static Pattern layerNamesRegExPattern = Pattern.compile(
+			"<layer>.*?<name>(.*?)</name>.*?</layer>", Pattern.DOTALL
+					+ Pattern.MULTILINE);
+
+	public List<String> getLayersUsingDatastore(String wsName, String dsName)
+			throws IOException {
+		final Pattern pattern = Pattern
+				.compile("<layer>.*?<name>(.*?)</name>.*?/rest/workspaces/"
+						+ wsName + "/datastores/" + dsName
+						+ "/featuretypes/.*?</layer>", Pattern.DOTALL
+						+ Pattern.MULTILINE);
+
+		List<String> layersUsingDs = new ArrayList<String>();
+		for (String lName : getLayerNames()) {
+			String xml = sendRESTstring(METHOD_GET, "/layers/" + lName, null);
+			// System.out.println(xml);
+
+			Matcher matcher = pattern.matcher(xml);
+			if (matcher.find())
+				layersUsingDs.add(lName);
+		}
+
+		return layersUsingDs;
+
+	}
+
+	/**
+	 * Questionalble what is happening here?! Delete the Layers instead!?
+	 */
+	public boolean deleteFeatureType(String wsName, String dsName, String ftName)
+			throws IOException {
+
+		int result = sendRESTint(METHOD_DELETE, "/workspaces/" + wsName
+				+ "/datastores/" + dsName + "/featuretypes/" + ftName, null);
+
+		return result == 200;
+	}
+
+	static final Pattern featuretypesNameRegEx = Pattern.compile(
+			"<featureType>.*?<name>(.*?)</name>.*?</featureType>",
+			Pattern.DOTALL + Pattern.MULTILINE);
+
+	/**
+	 * Returns a list of all featuretypes inside a a datastore
+	 * 
+	 * @param wsName
+	 * @param dsName
+	 * @throws IOException
+	 */
+	public List<String> getFeatureTypes(String wsName, String dsName)
+			throws IOException {
+		String xml = sendRESTstring(METHOD_GET, "/workspaces/" + wsName
+				+ "/datastores/" + dsName + "/featuretypes", null);
+
+		return parseXmlWithregEx(xml, featuretypesNameRegEx);
+
+	}
+
+	private List<String> parseXmlWithregEx(String xml, Pattern pattern) {
+		ArrayList<String> list = new ArrayList<String>();
+
+		Matcher nameMatcher = pattern.matcher(xml);
+		while (nameMatcher.find()) {
+			String name = nameMatcher.group(1);
+			list.add(name.trim());
+		}
+		return list;
+	}
+
+	final static Pattern datastoreNameRegEx = Pattern.compile(
+			"<dataStore>.*?<name>(.*?)</name>.*?</dataStore>", Pattern.DOTALL);
+
+	public String sendRESTstring(String method, String url,
+			String xmlPostContent) throws IOException {
+		return sendRESTstring(method, url, xmlPostContent, "application/xml",
+				"application/xml");
+	}
+
+	public int sendRESTint(String method, String url, String xmlPostContent)
+			throws IOException {
+		return sendRESTint(method, url, xmlPostContent, "application/xml",
+				"application/xml");
 	}
 
 	public boolean createWorkspace(String workspaceName) throws IOException {
 		return 201 == sendRESTint(METHOD_POST, "/workspaces",
-				"<workspace><name>" + workspaceName + "</name></workspace>",
-				"application/xml", "application/xml");
+				"<workspace><name>" + workspaceName + "</name></workspace>");
 	}
 
 	public boolean createDatastorePg(String workspace, String dsName,
@@ -228,15 +404,14 @@ public class GsRest {
 				+ "</namespace></connectionParameters></dataStore>";
 
 		int returnCode = sendRESTint(METHOD_POST, "/workspaces/" + workspace
-				+ "/datastores", xml, "application/xml", "application/xml");
+				+ "/datastores", xml);
 		return 201 == returnCode;
 	}
 
 	public String getDatastore(String wsName, String dsName)
 			throws MalformedURLException, ProtocolException, IOException {
 		return sendRESTstring(METHOD_GET, "/workspaces/" + wsName
-				+ "/datastores/" + dsName, null, "application/xml",
-				"application/xml");
+				+ "/datastores/" + dsName, null);
 	}
 
 	public boolean createFeatureType(String wsName, String dsName, String ftName)
@@ -244,16 +419,14 @@ public class GsRest {
 		String xml = "<featureType><name>" + ftName + "</name><title>" + ftName
 				+ "</title></featureType>";
 		int sendRESTint = sendRESTint(METHOD_POST, "/workspaces/" + wsName
-				+ "/datastores/" + dsName + "/featuretypes", xml,
-				"application/xml", "application/xml");
+				+ "/datastores/" + dsName + "/featuretypes", xml);
 		return 201 == sendRESTint;
 	}
 
 	public String getFeatureType(String wsName, String dsName, String ftName)
 			throws IOException {
 		return sendRESTstring(METHOD_GET, "/workspaces/" + wsName
-				+ "/datastores/" + dsName + "/featuretypes/" + ftName, null,
-				"application/xml", "application/xml");
+				+ "/datastores/" + dsName + "/featuretypes/" + ftName, null);
 	}
 
 }
