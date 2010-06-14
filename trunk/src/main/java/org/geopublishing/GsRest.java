@@ -10,6 +10,7 @@
  ******************************************************************************/
 package org.geopublishing;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStreamWriter;
@@ -200,40 +201,47 @@ public class GsRest {
 	}
 
 	/**
-	 * Deletes a workspace recursively. If the workspace doesn't exist it thorws
+	 * Deletes a workspace recursively. If the workspace doesn't exist it throws
 	 * an {@link IOException}. <code>false</code> is returned if the workspace
 	 * is not empty.
 	 * 
 	 * @param wsName
 	 *            name of the workspace to delete, including all content.
+	 * @throws IOException
 	 */
 	public boolean deleteWorkspace(String wsName, boolean recursive)
 			throws IOException {
 
-		if (recursive) {
+		try {
 
-			// Check if the workspace exists and delete all datastores
-			// recusively
-			String datastoresXml = sendRESTstring(METHOD_GET, "/workspaces/"
-					+ wsName + "/datastores", null);
-			List<String> datastores = parseXmlWithregEx(datastoresXml,
-					datastoreNameRegEx);
-			for (String dsName : datastores) {
-				if (!deleteDatastore(wsName, dsName, true))
-					throw new IOException("Could not delete Datastore "
-							+ dsName + " in workspace " + wsName);
+			if (recursive) {
+
+				// Check if the workspace exists and delete all datastores
+				// recusively
+				String datastoresXml = sendRESTstring(METHOD_GET,
+						"/workspaces/" + wsName + "/datastores", null);
+				List<String> datastores = parseXmlWithregEx(datastoresXml,
+						datastoreNameRegEx);
+				for (String dsName : datastores) {
+					if (!deleteDatastore(wsName, dsName, true))
+						throw new IOException("Could not delete Datastore "
+								+ dsName + " in workspace " + wsName);
+				}
+
+				// TODO NOT IMPLEMENETED YET
+				// String coveragestoresXml = sendRESTstring(METHOD_GET,
+				// "/workspaces/"
+				// + wsName + "/coveragestores", null);
+				// List<String> coveragestores =
+				// parseCoveragestoresXml(coveragestoresXml);
 			}
 
-			// TODO NOT IMPLEMENETED YET
-			// String coveragestoresXml = sendRESTstring(METHOD_GET,
-			// "/workspaces/"
-			// + wsName + "/coveragestores", null);
-			// List<String> coveragestores =
-			// parseCoveragestoresXml(coveragestoresXml);
+			return 200 == sendRESTint(METHOD_DELETE, "/workspaces/" + wsName,
+					null, "application/xml", "application/xml");
+		} catch (FileNotFoundException e) {
+			// Workspace didn't exist
+			return false;
 		}
-
-		return 200 == sendRESTint(METHOD_DELETE, "/workspaces/" + wsName, null,
-				"application/xml", "application/xml");
 	}
 
 	/**
