@@ -69,20 +69,6 @@
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 	</properties>
 
-	<distributionManagement>
-		<snapshotRepository>
-			<id>artifactory.wikisquare.de</id>
-			<name>artifactory.wikisquare.de-snapshots</name>
-			<url>http://www.wikisquare.de:8080/artifactory/libs-snapshots-local</url>
-			<uniqueVersion>false</uniqueVersion>
-		</snapshotRepository>
-		<repository>
-			<id>artifactory.wikisquare.de</id>
-			<name>artifactory.wikisquare.de-releases</name>
-			<url>http://www.wikisquare.de:8080/artifactory/libs-releases-local</url>
-			<uniqueVersion>false</uniqueVersion>
-		</repository>
-	</distributionManagement>
 
 	<dependencies>
 		<dependency>
@@ -108,5 +94,42 @@
 			</plugin>
 		</plugins>
 	</build>
+	
+	
+	<repositories>
+
+		<repository>
+			<snapshots>
+				<enabled>false</enabled>
+			</snapshots>
+			<id>central</id>
+			<name>libs-releases</name>
+			<url>http://artifactory.wikisquare.de/artifactory/libs-releases</url>
+		</repository>
+
+		<repository>
+			<snapshots />
+			<id>snapshots</id>
+			<name>libs-snapshots</name>
+			<url>http://artifactory.wikisquare.de/artifactory/libs-snapshots</url>
+		</repository>
+
+	</repositories>
+
+	<distributionManagement>
+
+		<repository>
+			<id>artifactory.wikisquare.de</id>
+			<name>artifactory.wikisquare.de-releases</name>
+			<url>http://artifactory.wikisquare.de/artifactory/libs-releases-local</url>
+		</repository>
+
+		<snapshotRepository>
+			<id>artifactory.wikisquare.de</id>
+			<name>artifactory.wikisquare.de-snapshots</name>
+			<url>http://artifactory.wikisquare.de/artifactory/libs-snapshots-local</url>
+		</snapshotRepository>
+
+	</distributionManagement>
 
 </project>
