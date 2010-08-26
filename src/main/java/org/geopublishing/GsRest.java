@@ -384,17 +384,22 @@ public class GsRest {
 
 	public boolean createDatastorePg(String workspace, String dsName,
 			String dsNamespace, String host, String port, String db,
-			String user, String pwd) throws IOException {
+			String user, String pwd, boolean exposePKs) throws IOException {
 
 		String dbType = "postgis";
 
 		return createDbDatastore(workspace, dsName, dsNamespace, host, port,
-				db, user, pwd, dbType);
+				db, user, pwd, dbType, exposePKs);
 	}
 
 	private boolean createDbDatastore(String workspace, String dsName,
 			String dsNamespace, String host, String port, String db,
-			String user, String pwd, String dbType) throws IOException {
+			String user, String pwd, String dbType, boolean exposePKs)
+			throws IOException {
+
+		String exposePKsParamter = "";
+//		if (exposePKs)
+//			exposePKsParamter = "<Expose primary keys>true</Expose primary keys>";
 
 		/*
 		 * <dataStore> <name>nyc</name> <connectionParameters>
@@ -408,8 +413,8 @@ public class GsRest {
 				+ host + "</host><port>" + port + "</port><database>" + db
 				+ "</database><user>" + user + "</user><passwd>" + pwd
 				+ "</passwd><dbtype>" + dbType + "</dbtype><namespace>"
-				+ dsNamespace
-				+ "</namespace></connectionParameters></dataStore>";
+				+ dsNamespace + "</namespace>" + exposePKsParamter
+				+ "</connectionParameters></dataStore>";
 
 		int returnCode = sendRESTint(METHOD_POST, "/workspaces/" + workspace
 				+ "/datastores", xml);
