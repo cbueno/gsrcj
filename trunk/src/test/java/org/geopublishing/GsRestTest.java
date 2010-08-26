@@ -15,15 +15,15 @@ public class GsRestTest extends GsRest {
 	@Test
 	public void testParseDatastoresXml() throws MalformedURLException,
 			ProtocolException, IOException {
-		deleteWorkspace("ws", true);
-		createWorkspace("ws");
+//		deleteWorkspace("ws", true);
+//		createWorkspace("ws");
 //
 //		assertTrue(createDatastorePg("ws", "ds", "http://keck.cpa.de",
 //				"localhost", "5432", "keck", "postgres", "secretIRI69.", false));
 
-		System.out.println(getDatastore("ws", "ds"));
-		
-		System.out.println(getDatastore("keck", "keckPg"));
+//		System.out.println(getDatastore("ws", "ds"));
+//		
+//		System.out.println(getDatastore("keck", "keckPg"));
 
 		// String xml =
 		// "<dataStores>  <dataStore>    <name>keckPg</name>    <atom:link xmlns:atom=\"http://www.w3.org/2005/Atom\" rel=\"alternate\" href=\"http://localhost:8085/geoserver/rest/workspaces/testWorkspace1276269538724/datastores/keckPg.xml\" type=\"application/xml\"/>  </dataStore></dataStores><coverageStores/>";
