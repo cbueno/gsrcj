@@ -397,9 +397,8 @@ public class GsRest {
 			String user, String pwd, String dbType, boolean exposePKs)
 			throws IOException {
 
-		String exposePKsParamter = "";
-//		if (exposePKs)
-//			exposePKsParamter = "<Expose primary keys>true</Expose primary keys>";
+		String exposePKsParamter = "<entry key=\"Expose primary keys\">"
+				+ exposePKs + "</entry>";
 
 		/*
 		 * <dataStore> <name>nyc</name> <connectionParameters>
