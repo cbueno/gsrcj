@@ -1,0 +1,5 @@
+#summary Start using gsrcj quickly:
+
+= Introduction =
+
+I quest the easiest way is to see examples. Check out the sourcecode and uncomment GsRestTest.java. Next start your local Geoserver and enter your credentials in GsRestTest.java. Now run the tests and look at how they work.
