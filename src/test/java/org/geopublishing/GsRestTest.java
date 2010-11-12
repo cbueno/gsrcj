@@ -13,13 +13,15 @@ import java.net.URL;
 import org.junit.Ignore;
 import org.junit.Test;
 
-@Ignore
+//@Ignore
 public class GsRestTest extends GsRest {
 
 	public GsRestTest() {
 		super("http://localhost:8085/geoserver", "admin", "geoserver");
 	}
 
+	/**
+	 */
 	@Test
 	public void testSendShape() throws MalformedURLException,
 			ProtocolException, IOException, URISyntaxException {
