@@ -622,15 +622,15 @@ public class GsRest {
 	}
 
 	/**
-	 * @param stylename
-	 * @param sldString
+	 * Uploads an SLD to the Geoserver
+	 * @param stylename 
+	 * @param sldString SLD-XML as String
 	 * @return <code>true</code> successfully uploaded
-	 * @throws IOException
 	 */
-	protected boolean uploadSld(String stylename, String sldString)
+	public boolean createSld(String stylename, String sldString)
 			throws IOException {
 
-		return null != uploadSld_location(stylename, sldString);
+		return null != createSld_location(stylename, sldString);
 	}
 
 	/**
@@ -639,7 +639,7 @@ public class GsRest {
 	 * @return REST location URL string to the new style
 	 * @throws IOException
 	 */
-	protected String uploadSld_location(String stylename, String sldString)
+	public String createSld_location(String stylename, String sldString)
 			throws IOException {
 
 		String location = sendRESTlocation(METHOD_POST, "/styles/" + "?name="
