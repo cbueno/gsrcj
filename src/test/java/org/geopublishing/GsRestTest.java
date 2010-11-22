@@ -13,25 +13,28 @@ import java.net.URL;
 import org.junit.Ignore;
 import org.junit.Test;
 
-//@Ignore
 public class GsRestTest extends GsRest {
 
 	public GsRestTest() {
-		super("http://localhost:8085/geoserver", "admin", "geoserver");
+		super(GsTestingUtil.getUrl(), GsTestingUtil.getUsername(),
+				GsTestingUtil.getPassword());
 	}
 
 	/**
 	 */
 	@Test
+	@Ignore
 	public void testSendShape() throws MalformedURLException,
 			ProtocolException, IOException, URISyntaxException {
+		if (!GsTestingUtil.isAvailable())
+			return;
+
 		deleteWorkspace("ws", true);
 		createWorkspace("ws");
 
-		URL soilsZipFile = GsRestTest.class.getResource("/arabicData.zip");
+		URL soilsZipFile = GsRestTest.class.getResource("/points.zip");
 		assertNotNull(soilsZipFile);
-
-		// String sldString = RestUtil.readURLasString(soilsSldFile);
+		soilsZipFile.openStream().close();
 
 		String r = uploadShape("ws", "zipUpload_" + System.currentTimeMillis(),
 				soilsZipFile);
@@ -42,17 +45,21 @@ public class GsRestTest extends GsRest {
 	@Test
 	public void testParseDatastoresXml() throws MalformedURLException,
 			ProtocolException, IOException {
+		if (!GsTestingUtil.isAvailable())
+			return;
+
 		deleteWorkspace("ws", true);
 		createWorkspace("ws");
 
 		assertTrue(createDatastorePg("ws", "ds", "http://foo.bar.de",
 				"localhost", "5432", "keck", "postgres", "secret", false));
 		System.out.println(getDatastore("ws", "ds"));
-		// System.out.println(getDatastore("foo", "fooPg"));
 	}
 
 	@Test
 	public void testSendSld() throws IOException {
+		if (!GsTestingUtil.isAvailable())
+			return;
 
 		URL soilsSldFile = GsRestTest.class.getResource("/soils.sld");
 		String sldString = RestUtil.readURLasString(soilsSldFile);
@@ -62,6 +69,9 @@ public class GsRestTest extends GsRest {
 	@Test
 	public void testSendAndDeleteSld() throws MalformedURLException,
 			ProtocolException, IOException {
+		if (!GsTestingUtil.isAvailable())
+			return;
+
 		deleteWorkspace("ws", true);
 		createWorkspace("ws");
 
@@ -87,6 +97,9 @@ public class GsRestTest extends GsRest {
 
 	@Test
 	public void testCreateDatastoreShapefile() throws IOException {
+		if (!GsTestingUtil.isAvailable())
+			return;
+
 		boolean created = createDatastoreShapefile("ws",
 				"testShape" + System.currentTimeMillis(), "http://test",
 				"file:data/ad2/soils.shp", "ISO-8859-1");
