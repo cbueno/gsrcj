@@ -54,7 +54,7 @@ public class GsRest {
 	 */
 	public GsRest(String gsBaseUrl, String username, String password) {
 
-		if (!gsBaseUrl.endsWith("/"))
+		if (gsBaseUrl != null && !gsBaseUrl.endsWith("/"))
 			gsBaseUrl += "/";
 
 		this.restUrl = gsBaseUrl + "rest";
@@ -623,8 +623,10 @@ public class GsRest {
 
 	/**
 	 * Uploads an SLD to the Geoserver
-	 * @param stylename 
-	 * @param sldString SLD-XML as String
+	 * 
+	 * @param stylename
+	 * @param sldString
+	 *            SLD-XML as String
 	 * @return <code>true</code> successfully uploaded
 	 */
 	public boolean createSld(String stylename, String sldString)
@@ -649,7 +651,10 @@ public class GsRest {
 	}
 
 	/**
-	 * Works: curl -u admin:geoserver -v -XPUT -H 'Content-type: application/zip' --data-binary @/home/stefan/Desktop/arabicData.zip http://localhost:8085/geoserver/rest/workspaces/ws/datastores/test1/file.shp
+	 * Works: curl -u admin:geoserver -v -XPUT -H 'Content-type:
+	 * application/zip' --data-binary @/home/stefan/Desktop/arabicData.zip
+	 * http:/
+	 * /localhost:8085/geoserver/rest/workspaces/ws/datastores/test1/file.shp
 	 */
 	protected String uploadShape(String workspace, String dsName, URL zip)
 			throws IOException {
