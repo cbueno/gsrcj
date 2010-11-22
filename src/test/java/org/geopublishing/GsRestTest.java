@@ -56,7 +56,7 @@ public class GsRestTest extends GsRest {
 
 		URL soilsSldFile = GsRestTest.class.getResource("/soils.sld");
 		String sldString = RestUtil.readURLasString(soilsSldFile);
-		assertTrue(uploadSld("test_" + System.currentTimeMillis(), sldString));
+		assertTrue(createSld("test_" + System.currentTimeMillis(), sldString));
 	}
 
 	@Test
@@ -76,9 +76,9 @@ public class GsRestTest extends GsRest {
 
 		String sldString = RestUtil.readURLasString(soilsSldFile);
 
-		assertTrue(uploadSld(styleName, sldString));
+		assertTrue(createSld(styleName, sldString));
 
-		assertFalse(uploadSld(styleName, sldString));
+		assertFalse(createSld(styleName, sldString));
 
 		boolean deletedSld = deleteSld(styleName, true);
 		System.out.println("deleted existing XXX.sld : " + deletedSld);
