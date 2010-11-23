@@ -332,7 +332,7 @@ public class GsRest {
 
 			return 200 == sendRESTint(METHOD_DELETE, "/workspaces/" + wsName,
 					null, "application/xml", "application/xml");
-		} catch (FileNotFoundException e) {
+		} catch (IOException e) {
 			// Workspace didn't exist
 			return false;
 		}
