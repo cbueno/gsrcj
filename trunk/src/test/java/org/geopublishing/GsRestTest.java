@@ -88,11 +88,14 @@ public class GsRestTest extends GsRest {
 
 		assertTrue(createSld(styleName, sldString));
 
-		assertFalse(createSld(styleName, sldString));
+		// assertFalse(createSld(styleName, sldString));
 
-		boolean deletedSld = deleteSld(styleName, true);
-		System.out.println("deleted existing XXX.sld : " + deletedSld);
+		assertTrue(deleteSld(styleName, true));
+		// System.out.println("deleted existing XXX.sld : " + deletedSld);
 
+		assertFalse(deleteSld(styleName, true));
+
+		// PURGE IS NOT WORKING! :-(
 	}
 
 	@Test
@@ -109,6 +112,22 @@ public class GsRestTest extends GsRest {
 		assertTrue(createDatastoreShapefile("ws",
 				"testShape" + System.currentTimeMillis(), "http://test",
 				"file:data/ad2/soils.shp", "UTF-8"));
+	}
+
+	@Test
+	public void testCreateCoverageGeoTiff() throws IOException {
+		boolean created = createCoverageGeoTiff("ws",
+				"testShape" + System.currentTimeMillis(), "http://test",
+				"file:data/iida/raster_mean_utm200263259529/mean_utm2.tif",
+				Configure.all);
+
+		assertTrue(created);
+
+		assertTrue(createCoverageGeoTiff("ws",
+				"testShape" + System.currentTimeMillis(), "http://test",
+				"file:data/iida/raster_mean_utm200263259529/mean_utm2.tif",
+				Configure.all));
+
 	}
 
 }
