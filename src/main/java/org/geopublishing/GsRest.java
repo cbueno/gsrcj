@@ -390,7 +390,8 @@ public class GsRest {
 		if (purge == null)
 			purge = false;
 		int result = sendRESTint(METHOD_DELETE, "/styles/" + styleName
-				+ ".sld&purge=" + purge + "&name=" + styleName, null);
+				+ ".sld&purge=" + purge.toString(), null);
+		// + "&name=" + styleName
 		return result == 200;
 	}
 
@@ -533,8 +534,11 @@ public class GsRest {
 	 */
 	public boolean createDatastoreShapefile(String workspace, String dsName,
 			String dsNamespace, String relpath, String charset,
-			Boolean memoryMappedBuffer, Boolean createSpatialIndex)
-			throws IOException {
+			Boolean memoryMappedBuffer, Boolean createSpatialIndex,
+			Configure autoConfig) throws IOException {
+
+		if (autoConfig == null)
+			autoConfig = Configure.first;
 
 		if (relpath == null)
 			throw new IllegalArgumentException(
@@ -564,7 +568,7 @@ public class GsRest {
 				+ "</connectionParameters></dataStore>";
 
 		int returnCode = sendRESTint(METHOD_POST, "/workspaces/" + workspace
-				+ "/datastores", xml);
+				+ "/datastores?configure=" + autoConfig.toString(), xml);
 		return 201 == returnCode;
 	}
 
@@ -573,7 +577,7 @@ public class GsRest {
 			throws IOException {
 
 		return createDatastoreShapefile(workspace, dsName, dsNamespace,
-				relpath, chartset, null, null);
+				relpath, chartset, null, null, null);
 	}
 
 	private boolean createDbDatastore(String workspace, String dsName,
@@ -684,27 +688,31 @@ public class GsRest {
 	 *            A path to the file, relative to gsdata dir, e.g.
 	 *            "data/water.shp"
 	 */
-	public boolean createDatastoreGeoTiff(String workspace, String dsName,
-			String dsNamespace, String relpath) throws IOException {
+	public boolean createCoverageGeoTiff(String workspace, String dsName,
+			String dsNamespace, String relpath, Configure autoConfig)
+			throws IOException {
 
 		if (relpath == null)
 			throw new IllegalArgumentException(
 					"parameter relpath may not be null");
 
+		if (autoConfig == null)
+			autoConfig = Configure.first;
+
 		String urlParamter = "<entry key=\"url\">" + relpath + "</entry>";
 
-		String namespaceParamter = "<entry key=\"namespace\">" + dsName
-				+ "</entry>";
+		// String namespaceParamter = "<entry key=\"namespace\">" + dsName
+		// + "</entry>";
 
 		String typeParamter = "<type>GeoTIFF</type>";
 
-		String xml = "<dataStore><name>" + dsName
+		String xml = "<coverageStore><name>" + dsName
 				+ "</name><enabled>true</enabled>" + typeParamter
-				+ "<connectionParameters>" + urlParamter + namespaceParamter
-				+ typeParamter + "</connectionParameters></dataStore>";
+				+ "<connectionParameters>" + typeParamter + urlParamter
+				+ "</connectionParameters></coverageStore>";
 
 		int returnCode = sendRESTint(METHOD_POST, "/workspaces/" + workspace
-				+ "/datastores", xml);
+				+ "/coveragestores&configure=" + autoConfig.toString(), xml);
 		return 201 == returnCode;
 	}
 }
