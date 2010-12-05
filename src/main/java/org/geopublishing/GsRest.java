@@ -670,4 +670,41 @@ public class GsRest {
 			os.close();
 		}
 	}
+
+	/**
+	 * This method does not upload a shapefile via zip. It rather creates a
+	 * reference to a Shapefile that has already exists in the GS data
+	 * directory.
+	 * 
+	 * @param charset
+	 *            defaults to UTF-8 if not set. Charset, that any text content
+	 *            is stored in.
+	 * 
+	 * @param relpath
+	 *            A path to the file, relative to gsdata dir, e.g.
+	 *            "data/water.shp"
+	 */
+	public boolean createDatastoreGeoTiff(String workspace, String dsName,
+			String dsNamespace, String relpath) throws IOException {
+
+		if (relpath == null)
+			throw new IllegalArgumentException(
+					"parameter relpath may not be null");
+
+		String urlParamter = "<entry key=\"url\">" + relpath + "</entry>";
+
+		String namespaceParamter = "<entry key=\"namespace\">" + dsName
+				+ "</entry>";
+
+		String typeParamter = "<type>GeoTIFF</type>";
+
+		String xml = "<dataStore><name>" + dsName
+				+ "</name><enabled>true</enabled>" + typeParamter
+				+ "<connectionParameters>" + urlParamter + namespaceParamter
+				+ typeParamter + "</connectionParameters></dataStore>";
+
+		int returnCode = sendRESTint(METHOD_POST, "/workspaces/" + workspace
+				+ "/datastores", xml);
+		return 201 == returnCode;
+	}
 }
