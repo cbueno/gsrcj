@@ -9,6 +9,7 @@ import java.net.MalformedURLException;
 import java.net.ProtocolException;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.util.List;
 
 import org.junit.Ignore;
 import org.junit.Test;
@@ -128,6 +129,12 @@ public class GsRestTest extends GsRest {
 				"file:data/iida/raster_mean_utm200263259529/mean_utm2.tif",
 				Configure.all));
 
+	}
+
+	@Test
+	public void testGetStyles() throws IOException {
+		List<String> s = getStyles();
+		assertNotNull(s);
 	}
 
 }

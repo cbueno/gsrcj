@@ -31,14 +31,63 @@ import sun.misc.BASE64Encoder;
 
 public class GsRest {
 
-	public final String METHOD_POST = "POST";
-	public final String METHOD_GET = "GET";
-	public final String METHOD_PUT = "PUT";
+	final static Pattern datastoreNameRegEx = Pattern.compile(
+			"<dataStore>.*?<name>(.*?)</name>.*?</dataStore>", Pattern.DOTALL);
+	static final Pattern featuretypesNameRegEx = Pattern.compile(
+			"<featureType>.*?<name>(.*?)</name>.*?</featureType>",
+			Pattern.DOTALL + Pattern.MULTILINE);
+	final static Pattern layerNamesRegExPattern = Pattern.compile(
+			"<layer>.*?<name>(.*?)</name>.*?</layer>", Pattern.DOTALL
+					+ Pattern.MULTILINE);
+	/**
+	 * <code>
+	   <styles>
+			<style>
+			<name>point</name>
+			<atom:link rel="alternate" href="http://localhost:8085/geoserver/rest/styles/point.xml" type="application/xml"/>
+			</style>
+			<style>
+			<name>line</name>
+			<atom:link rel="alternate" href="http://localhost:8085/geoserver/rest/styles/line.xml" type="application/xml"/>
+			</style>
+			...
+		</styles>
+		</code>
+	 */
+	static final Pattern stylesNameRegEx = Pattern.compile(
+			"<style>.*?<name>(.*?)</name>.*?</style>", Pattern.DOTALL
+					+ Pattern.MULTILINE);
+
 	public final String METHOD_DELETE = "DELETE";
+	public final String METHOD_GET = "GET";
+	public final String METHOD_POST = "POST";
+
+	public final String METHOD_PUT = "PUT";
 
 	private String password;
-	private String username;
+
 	private String restUrl;
+
+	private String username;
+
+	/**
+	 * Creates a {@link GsRest} instance to work on a Geoserver that allows
+	 * anonymous read- and write access.
+	 * 
+	 * @param gsBaseUrl
+	 *            The base URL of Geoserver. Usually ending with "../geoserver"
+	 */
+	public GsRest(String gsBaseUrl) {
+
+		if (!gsBaseUrl.endsWith("rest")) {
+			if (!gsBaseUrl.endsWith("/"))
+				gsBaseUrl += "/";
+			this.restUrl = gsBaseUrl + "rest";
+		}
+
+		this.username = null;
+		this.password = null;
+	}
 
 	/**
 	 * Creates a {@link GsRest} instance to work on a Geoserver which needs
@@ -62,436 +111,44 @@ public class GsRest {
 	}
 
 	/**
-	 * Creates a {@link GsRest} instance to work on a Geoserver that allows
-	 * anonymous read- and write access.
+	 * This method does not upload a shapefile via zip. It rather creates a
+	 * reference to a Shapefile that has already exists in the GS data
+	 * directory.
 	 * 
-	 * @param gsBaseUrl
-	 *            The base URL of Geoserver. Usually ending with "../geoserver"
-	 */
-	public GsRest(String gsBaseUrl) {
-
-		if (!gsBaseUrl.endsWith("rest")) {
-			if (!gsBaseUrl.endsWith("/"))
-				gsBaseUrl += "/";
-			this.restUrl = gsBaseUrl + "rest";
-		}
-
-		this.username = null;
-		this.password = null;
-	}
-
-	/**
-	 * @return <code>true</code> if authorization is used for requests
-	 */
-	public boolean isAuthorization() {
-		return password != null && username != null;
-	}
-
-	/**
-	 * Tell this {@link GsRest} instance to use authorization
+	 * @param charset
+	 *            defaults to UTF-8 if not set. Charset, that any text content
+	 *            is stored in.
 	 * 
-	 * @param username
-	 *            cleartext username
-	 * @param password
-	 *            cleartext password
+	 * @param relpath
+	 *            A path to the file, relative to gsdata dir, e.g.
+	 *            "data/water.shp"
 	 */
-	public void enableAuthorization(String username, String password) {
-		this.password = password;
-		this.username = username;
-	}
-
-	/**
-	 * Tell this instance of {@link GsRest} to not use authorization
-	 */
-	public void disableAuthorization() {
-		this.password = null;
-		this.username = null;
-	}
-
-	/**
-	 * @param method
-	 *            e.g. 'POST', 'GET', 'PUT' or 'DELETE'
-	 * @param urlEncoded
-	 *            e.g. '/workspaces' or '/workspaces.xml'
-	 * @param contentType
-	 *            format of postData, e.g. null or 'text/xml'
-	 * @param accept
-	 *            format of response, e.g. null or 'text/xml'
-	 * @param postData
-	 *            e.g. xml data
-	 * @throws IOException
-	 * @return null, or response of server
-	 */
-	public int sendRESTint(String method, String urlEncoded, String postData,
-			String contentType, String accept) throws IOException {
-		HttpURLConnection connection = sendREST(method, urlEncoded, postData,
-				contentType, accept);
-
-		String location = connection.getHeaderField("Location");
-
-		return connection.getResponseCode();
-	}
-
-	/**
-	 * @param method
-	 *            e.g. 'POST', 'GET', 'PUT' or 'DELETE'
-	 * @param urlEncoded
-	 *            e.g. '/workspaces' or '/workspaces.xml'
-	 * @param contentType
-	 *            format of postData, e.g. null or 'text/xml'
-	 * @param accept
-	 *            format of response, e.g. null or 'text/xml'
-	 * @param postData
-	 *            e.g. xml data
-	 * @return null, or location field of the response header
-	 */
-	public String sendRESTlocation(String method, String urlEncoded,
-			String postData, String contentType, String accept)
+	public boolean createCoverageGeoTiff(String workspace, String dsName,
+			String dsNamespace, String relpath, Configure autoConfig)
 			throws IOException {
-		HttpURLConnection connection = sendREST(method, urlEncoded, postData,
-				contentType, accept);
 
-		return connection.getHeaderField("Location");
-	}
-
-	/**
-	 * Sends a REST request and return the answer as a String
-	 * 
-	 * @param method
-	 *            e.g. 'POST', 'GET', 'PUT' or 'DELETE'
-	 * @param urlEncoded
-	 *            e.g. '/workspaces' or '/workspaces.xml'
-	 * @param contentType
-	 *            format of postData, e.g. null or 'text/xml'
-	 * @param accept
-	 *            format of response, e.g. null or 'text/xml'
-	 * @param postData
-	 *            e.g. xml data
-	 * @throws IOException
-	 * @return null, or response of server
-	 */
-	public String sendRESTstring(String method, String urlEncoded,
-			String postData, String contentType, String accept)
-			throws IOException {
-		HttpURLConnection connection = sendREST(method, urlEncoded, postData,
-				contentType, accept);
-
-		// Read response
-		InputStream in = connection.getInputStream();
-		try {
-
-			int len;
-			byte[] buf = new byte[1024];
-			StringBuffer sbuf = new StringBuffer();
-			while ((len = in.read(buf)) > 0) {
-				sbuf.append(new String(buf, 0, len));
-			}
-			return sbuf.toString();
-		} finally {
-			in.close();
-		}
-	}
-
-	private HttpURLConnection sendREST(String method, String urlEncoded,
-			String postData, String contentType, String accept)
-			throws MalformedURLException, IOException {
-		StringReader postDataReader = postData == null ? null
-				: new StringReader(postData);
-		return sendREST(method, urlEncoded, postDataReader, contentType, accept);
-	}
-
-	/**
-	 * Sends a REST request and return the answer as a String.
-	 * 
-	 * @param method
-	 *            e.g. 'POST', 'GET', 'PUT' or 'DELETE'
-	 * @param urlEncoded
-	 *            e.g. '/workspaces' or '/workspaces.xml'
-	 * @param contentType
-	 *            format of postData, e.g. null or 'text/xml'
-	 * @param accept
-	 *            format of response, e.g. null or 'text/xml'
-	 * @param is
-	 *            where to read the data from
-	 * @throws IOException
-	 * @return null, or response of server
-	 */
-	public String sendRESTstring(String method, String urlEncoded, Reader is,
-			String contentType, String accept) throws IOException {
-		HttpURLConnection connection = sendREST(method, urlEncoded, is,
-				contentType, accept);
-
-		// Read response
-		InputStream in = connection.getInputStream();
-		try {
-
-			int len;
-			byte[] buf = new byte[1024];
-			StringBuffer sbuf = new StringBuffer();
-			while ((len = in.read(buf)) > 0) {
-				sbuf.append(new String(buf, 0, len));
-			}
-			return sbuf.toString();
-		} finally {
-			in.close();
-		}
-	}
-
-	private HttpURLConnection sendREST(String method, String urlAppend,
-			Reader postDataReader, String contentType, String accept)
-			throws MalformedURLException, IOException {
-		boolean doOut = !METHOD_DELETE.equals(method) && postDataReader != null;
-		// boolean doIn = true; // !doOut
-
-		String link = restUrl + urlAppend;
-		URL url = new URL(link);
-		HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-		connection.setDoOutput(doOut);
-		// uc.setDoInput(false);
-		if (contentType != null && !"".equals(contentType)) {
-			connection.setRequestProperty("Content-type", contentType);
-			connection.setRequestProperty("Content-Type", contentType);
-		}
-		if (accept != null && !"".equals(accept)) {
-			connection.setRequestProperty("Accept", accept);
-		}
-
-		connection.setRequestMethod(method.toString());
-
-		if (isAuthorization()) {
-			String userPasswordEncoded = new BASE64Encoder().encode((username
-					+ ":" + password).getBytes());
-			connection.setRequestProperty("Authorization", "Basic "
-					+ userPasswordEncoded);
-		}
-
-		connection.connect();
-		if (connection.getDoOutput()) {
-			Writer writer = new OutputStreamWriter(connection.getOutputStream());
-			char[] buffer = new char[1024];
-
-			Reader reader = new BufferedReader(postDataReader);
-			int n;
-			while ((n = reader.read(buffer)) != -1) {
-				writer.write(buffer, 0, n);
-			}
-
-			writer.flush();
-			writer.close();
-		}
-		return connection;
-	}
-
-	/**
-	 * Deletes an empty workspace. If the workspace is not empty or doesn't
-	 * exist <code>false</code> is returned.
-	 * 
-	 * @param wsName
-	 *            name of the workspace to delete
-	 */
-	public boolean deleteWorkspace(String wsName) throws IOException {
-		return deleteWorkspace(wsName, false);
-	}
-
-	/**
-	 * Deletes a workspace recursively. If the workspace could not be deleted
-	 * (e.g. didn't exist, or not recursively deleting and not empty) returns
-	 * <code>false</code>
-	 * 
-	 * @param wsName
-	 *            name of the workspace to delete, including all content.
-	 */
-	public boolean deleteWorkspace(String wsName, boolean recursive) {
-
-		try {
-
-			if (recursive) {
-
-				// Check if the workspace exists and delete all datastores
-				// recusively
-				String datastoresXml = sendRESTstring(METHOD_GET,
-						"/workspaces/" + wsName + "/datastores", null);
-				List<String> datastores = parseXmlWithregEx(datastoresXml,
-						datastoreNameRegEx);
-				for (String dsName : datastores) {
-					if (!deleteDatastore(wsName, dsName, true))
-						throw new IOException("Could not delete Datastore "
-								+ dsName + " in workspace " + wsName);
-				}
-
-				// TODO NOT IMPLEMENETED YET
-				// String coveragestoresXml = sendRESTstring(METHOD_GET,
-				// "/workspaces/"
-				// + wsName + "/coveragestores", null);
-				// List<String> coveragestores =
-				// parseCoveragestoresXml(coveragestoresXml);
-			}
-
-			return 200 == sendRESTint(METHOD_DELETE, "/workspaces/" + wsName,
-					null, "application/xml", "application/xml");
-		} catch (IOException e) {
-			// Workspace didn't exist
-			return false;
-		}
-	}
-
-	/**
-	 * Deletes a datastore
-	 * 
-	 * @param wsName
-	 *            name of the workspace
-	 * @param dsName
-	 *            name of the datastore
-	 * @param recusively
-	 *            delete all contained featureytpes also
-	 * @throws IOException
-	 */
-	private boolean deleteDatastore(String wsName, String dsName,
-			boolean recusively) throws IOException {
-		if (recusively == true) {
-			List<String> layerNames = getLayersUsingDatastore(wsName, dsName);
-
-			for (String lName : layerNames) {
-				if (!deleteLayer(lName))
-					throw new RuntimeException("Could not delete layer "
-							+ wsName + ":" + dsName + ":" + lName);
-			}
-
-			List<String> ftNames = getFeatureTypes(wsName, dsName);
-			//
-			for (String ftName : ftNames) {
-				// it happens that this returns false, e.g maybe for
-				// notpublished featuretypes!?
-				deleteFeatureType(wsName, dsName, ftName);
-			}
-		}
-		return 200 == sendRESTint(METHOD_DELETE, "/workspaces/" + wsName
-				+ "/datastores/" + dsName, null);
-	}
-
-	private boolean deleteLayer(String lName) throws IOException {
-		int result = sendRESTint(METHOD_DELETE, "/layers/" + lName, null);
-		return result == 200;
-	}
-
-	public boolean purgeSld(String styleName) throws IOException {
-		return deleteSld(styleName, true);
-	}
-
-	public boolean deleteSld(String styleName, Boolean... purge_)
-			throws IOException {
-		Boolean purge = null;
-		if (purge_.length > 1)
+		if (relpath == null)
 			throw new IllegalArgumentException(
-					"only one purge paramter allowed");
-		if (purge_.length == 1) {
-			purge = purge_[0];
-		}
-		if (purge == null)
-			purge = false;
-		int result = sendRESTint(METHOD_DELETE, "/styles/" + styleName
-				+ ".sld&purge=" + purge.toString(), null);
-		// + "&name=" + styleName
-		return result == 200;
-	}
+					"parameter relpath may not be null");
 
-	/**
-	 * Returns a {@link List} of all layer names
-	 * 
-	 * @param wsName
-	 */
-	public List<String> getLayerNames() throws IOException {
-		String xml = sendRESTstring(METHOD_GET, "/layers", null);
-		return parseXmlWithregEx(xml, layerNamesRegExPattern);
-	}
+		if (autoConfig == null)
+			autoConfig = Configure.first;
 
-	final static Pattern layerNamesRegExPattern = Pattern.compile(
-			"<layer>.*?<name>(.*?)</name>.*?</layer>", Pattern.DOTALL
-					+ Pattern.MULTILINE);
+		String urlParamter = "<entry key=\"url\">" + relpath + "</entry>";
 
-	public List<String> getLayersUsingDatastore(String wsName, String dsName)
-			throws IOException {
-		final Pattern pattern = Pattern
-				.compile("<layer>.*?<name>(.*?)</name>.*?/rest/workspaces/"
-						+ wsName + "/datastores/" + dsName
-						+ "/featuretypes/.*?</layer>", Pattern.DOTALL
-						+ Pattern.MULTILINE);
+		// String namespaceParamter = "<entry key=\"namespace\">" + dsName
+		// + "</entry>";
 
-		List<String> layersUsingDs = new ArrayList<String>();
-		for (String lName : getLayerNames()) {
-			String xml = sendRESTstring(METHOD_GET, "/layers/" + lName, null);
-			// System.out.println(xml);
+		String typeParamter = "<type>GeoTIFF</type>";
 
-			Matcher matcher = pattern.matcher(xml);
-			if (matcher.find())
-				layersUsingDs.add(lName);
-		}
+		String xml = "<coverageStore><name>" + dsName
+				+ "</name><enabled>true</enabled>" + typeParamter
+				+ "<connectionParameters>" + typeParamter + urlParamter
+				+ "</connectionParameters></coverageStore>";
 
-		return layersUsingDs;
-
-	}
-
-	/**
-	 * Questionalble what is happening here?! Delete the Layers instead!?
-	 */
-	public boolean deleteFeatureType(String wsName, String dsName, String ftName)
-			throws IOException {
-
-		int result = sendRESTint(METHOD_DELETE, "/workspaces/" + wsName
-				+ "/datastores/" + dsName + "/featuretypes/" + ftName, null);
-
-		return result == 200;
-	}
-
-	static final Pattern featuretypesNameRegEx = Pattern.compile(
-			"<featureType>.*?<name>(.*?)</name>.*?</featureType>",
-			Pattern.DOTALL + Pattern.MULTILINE);
-
-	/**
-	 * Returns a list of all featuretypes inside a a datastore
-	 * 
-	 * @param wsName
-	 * @param dsName
-	 * @throws IOException
-	 */
-	public List<String> getFeatureTypes(String wsName, String dsName)
-			throws IOException {
-		String xml = sendRESTstring(METHOD_GET, "/workspaces/" + wsName
-				+ "/datastores/" + dsName + "/featuretypes", null);
-
-		return parseXmlWithregEx(xml, featuretypesNameRegEx);
-
-	}
-
-	private List<String> parseXmlWithregEx(String xml, Pattern pattern) {
-		ArrayList<String> list = new ArrayList<String>();
-
-		Matcher nameMatcher = pattern.matcher(xml);
-		while (nameMatcher.find()) {
-			String name = nameMatcher.group(1);
-			list.add(name.trim());
-		}
-		return list;
-	}
-
-	final static Pattern datastoreNameRegEx = Pattern.compile(
-			"<dataStore>.*?<name>(.*?)</name>.*?</dataStore>", Pattern.DOTALL);
-
-	public String sendRESTstring(String method, String url,
-			String xmlPostContent) throws IOException {
-		return sendRESTstring(method, url, xmlPostContent, "application/xml",
-				"application/xml");
-	}
-
-	public int sendRESTint(String method, String url, String xmlPostContent)
-			throws IOException {
-		return sendRESTint(method, url, xmlPostContent, "application/xml",
-				"application/xml");
-	}
-
-	public boolean createWorkspace(String workspaceName) throws IOException {
-		return 201 == sendRESTint(METHOD_POST, "/workspaces",
-				"<workspace><name>" + workspaceName + "</name></workspace>");
+		int returnCode = sendRESTint(METHOD_POST, "/workspaces/" + workspace
+				+ "/coveragestores&configure=" + autoConfig.toString(), xml);
+		return 201 == returnCode;
 	}
 
 	public boolean createDatastorePg(String workspace, String dsName,
@@ -502,6 +159,14 @@ public class GsRest {
 
 		return createDbDatastore(workspace, dsName, dsNamespace, host, port,
 				db, user, pwd, dbType, exposePKs);
+	}
+
+	public boolean createDatastoreShapefile(String workspace, String dsName,
+			String dsNamespace, String relpath, String chartset)
+			throws IOException {
+
+		return createDatastoreShapefile(workspace, dsName, dsNamespace,
+				relpath, chartset, null, null, null);
 	}
 
 	/**
@@ -572,14 +237,6 @@ public class GsRest {
 		return 201 == returnCode;
 	}
 
-	public boolean createDatastoreShapefile(String workspace, String dsName,
-			String dsNamespace, String relpath, String chartset)
-			throws IOException {
-
-		return createDatastoreShapefile(workspace, dsName, dsNamespace,
-				relpath, chartset, null, null, null);
-	}
-
 	private boolean createDbDatastore(String workspace, String dsName,
 			String dsNamespace, String host, String port, String db,
 			String user, String pwd, String dbType, boolean exposePKs)
@@ -601,12 +258,6 @@ public class GsRest {
 		return 201 == returnCode;
 	}
 
-	public String getDatastore(String wsName, String dsName)
-			throws MalformedURLException, ProtocolException, IOException {
-		return sendRESTstring(METHOD_GET, "/workspaces/" + wsName
-				+ "/datastores/" + dsName, null);
-	}
-
 	public boolean createFeatureType(String wsName, String dsName, String ftName)
 			throws IOException {
 		String xml = "<featureType><name>" + ftName + "</name><title>" + ftName
@@ -614,12 +265,6 @@ public class GsRest {
 		int sendRESTint = sendRESTint(METHOD_POST, "/workspaces/" + wsName
 				+ "/datastores/" + dsName + "/featuretypes", xml);
 		return 201 == sendRESTint;
-	}
-
-	public String getFeatureType(String wsName, String dsName, String ftName)
-			throws IOException {
-		return sendRESTstring(METHOD_GET, "/workspaces/" + wsName
-				+ "/datastores/" + dsName + "/featuretypes/" + ftName, null);
 	}
 
 	/**
@@ -651,6 +296,430 @@ public class GsRest {
 		return location;
 	}
 
+	public boolean createWorkspace(String workspaceName) throws IOException {
+		return 201 == sendRESTint(METHOD_POST, "/workspaces",
+				"<workspace><name>" + workspaceName + "</name></workspace>");
+	}
+
+	/**
+	 * Deletes a datastore
+	 * 
+	 * @param wsName
+	 *            name of the workspace
+	 * @param dsName
+	 *            name of the datastore
+	 * @param recusively
+	 *            delete all contained featureytpes also
+	 * @throws IOException
+	 */
+	private boolean deleteDatastore(String wsName, String dsName,
+			boolean recusively) throws IOException {
+		if (recusively == true) {
+			List<String> layerNames = getLayersUsingDatastore(wsName, dsName);
+
+			for (String lName : layerNames) {
+				if (!deleteLayer(lName))
+					throw new RuntimeException("Could not delete layer "
+							+ wsName + ":" + dsName + ":" + lName);
+			}
+
+			List<String> ftNames = getFeatureTypes(wsName, dsName);
+			//
+			for (String ftName : ftNames) {
+				// it happens that this returns false, e.g maybe for
+				// notpublished featuretypes!?
+				deleteFeatureType(wsName, dsName, ftName);
+			}
+		}
+		return 200 == sendRESTint(METHOD_DELETE, "/workspaces/" + wsName
+				+ "/datastores/" + dsName, null);
+	}
+
+	/**
+	 * Questionalble what is happening here?! Delete the Layers instead!?
+	 */
+	public boolean deleteFeatureType(String wsName, String dsName, String ftName)
+			throws IOException {
+
+		int result = sendRESTint(METHOD_DELETE, "/workspaces/" + wsName
+				+ "/datastores/" + dsName + "/featuretypes/" + ftName, null);
+
+		return result == 200;
+	}
+
+	private boolean deleteLayer(String lName) throws IOException {
+		int result = sendRESTint(METHOD_DELETE, "/layers/" + lName, null);
+		return result == 200;
+	}
+
+	public boolean deleteSld(String styleName, Boolean... purge_)
+			throws IOException {
+		Boolean purge = null;
+		if (purge_.length > 1)
+			throw new IllegalArgumentException(
+					"only one purge paramter allowed");
+		if (purge_.length == 1) {
+			purge = purge_[0];
+		}
+		if (purge == null)
+			purge = false;
+		int result = sendRESTint(METHOD_DELETE, "/styles/" + styleName
+				+ ".sld&purge=" + purge.toString(), null);
+		// + "&name=" + styleName
+		return result == 200;
+	}
+
+	/**
+	 * Deletes an empty workspace. If the workspace is not empty or doesn't
+	 * exist <code>false</code> is returned.
+	 * 
+	 * @param wsName
+	 *            name of the workspace to delete
+	 */
+	public boolean deleteWorkspace(String wsName) throws IOException {
+		return deleteWorkspace(wsName, false);
+	}
+
+	/**
+	 * Deletes a workspace recursively. If the workspace could not be deleted
+	 * (e.g. didn't exist, or not recursively deleting and not empty) returns
+	 * <code>false</code>
+	 * 
+	 * @param wsName
+	 *            name of the workspace to delete, including all content.
+	 */
+	public boolean deleteWorkspace(String wsName, boolean recursive) {
+
+		try {
+
+			if (recursive) {
+
+				// Check if the workspace exists and delete all datastores
+				// recusively
+				String datastoresXml = sendRESTstring(METHOD_GET,
+						"/workspaces/" + wsName + "/datastores", null);
+				List<String> datastores = parseXmlWithregEx(datastoresXml,
+						datastoreNameRegEx);
+				for (String dsName : datastores) {
+					if (!deleteDatastore(wsName, dsName, true))
+						throw new IOException("Could not delete Datastore "
+								+ dsName + " in workspace " + wsName);
+				}
+
+				// TODO NOT IMPLEMENETED YET
+				// String coveragestoresXml = sendRESTstring(METHOD_GET,
+				// "/workspaces/"
+				// + wsName + "/coveragestores", null);
+				// List<String> coveragestores =
+				// parseCoveragestoresXml(coveragestoresXml);
+			}
+
+			return 200 == sendRESTint(METHOD_DELETE, "/workspaces/" + wsName,
+					null, "application/xml", "application/xml");
+		} catch (IOException e) {
+			// Workspace didn't exist
+			return false;
+		}
+	}
+
+	/**
+	 * Tell this instance of {@link GsRest} to not use authorization
+	 */
+	public void disableAuthorization() {
+		this.password = null;
+		this.username = null;
+	}
+
+	/**
+	 * Tell this {@link GsRest} instance to use authorization
+	 * 
+	 * @param username
+	 *            cleartext username
+	 * @param password
+	 *            cleartext password
+	 */
+	public void enableAuthorization(String username, String password) {
+		this.password = password;
+		this.username = username;
+	}
+
+	public String getDatastore(String wsName, String dsName)
+			throws MalformedURLException, ProtocolException, IOException {
+		return sendRESTstring(METHOD_GET, "/workspaces/" + wsName
+				+ "/datastores/" + dsName, null);
+	}
+
+	public String getFeatureType(String wsName, String dsName, String ftName)
+			throws IOException {
+		return sendRESTstring(METHOD_GET, "/workspaces/" + wsName
+				+ "/datastores/" + dsName + "/featuretypes/" + ftName, null);
+	}
+
+	/**
+	 * Returns a list of all featuretypes inside a a datastore
+	 * 
+	 * @param wsName
+	 * @param dsName
+	 * @throws IOException
+	 */
+	public List<String> getFeatureTypes(String wsName, String dsName)
+			throws IOException {
+		String xml = sendRESTstring(METHOD_GET, "/workspaces/" + wsName
+				+ "/datastores/" + dsName + "/featuretypes", null);
+
+		return parseXmlWithregEx(xml, featuretypesNameRegEx);
+
+	}
+
+	/**
+	 * Returns a {@link List} of all layer names
+	 * 
+	 * @param wsName
+	 */
+	public List<String> getLayerNames() throws IOException {
+		String xml = sendRESTstring(METHOD_GET, "/layers", null);
+		return parseXmlWithregEx(xml, layerNamesRegExPattern);
+	}
+
+	public List<String> getLayersUsingDatastore(String wsName, String dsName)
+			throws IOException {
+		final Pattern pattern = Pattern
+				.compile("<layer>.*?<name>(.*?)</name>.*?/rest/workspaces/"
+						+ wsName + "/datastores/" + dsName
+						+ "/featuretypes/.*?</layer>", Pattern.DOTALL
+						+ Pattern.MULTILINE);
+
+		List<String> layersUsingDs = new ArrayList<String>();
+		for (String lName : getLayerNames()) {
+			String xml = sendRESTstring(METHOD_GET, "/layers/" + lName, null);
+			// System.out.println(xml);
+
+			Matcher matcher = pattern.matcher(xml);
+			if (matcher.find())
+				layersUsingDs.add(lName);
+		}
+
+		return layersUsingDs;
+
+	}
+
+	/**
+	 * @return A list of all stylenames stored in geoserver. Includes "default"
+	 *         stylenames like <code>point</code>,<code>line</code>,etc.
+	 */
+	public List<String> getStyles() throws IOException {
+		String xml = sendRESTstring(METHOD_GET, "/styles", null);
+		return parseXmlWithregEx(xml, stylesNameRegEx);
+	}
+
+	/**
+	 * @return <code>true</code> if authorization is used for requests
+	 */
+	public boolean isAuthorization() {
+		return password != null && username != null;
+	}
+
+	private List<String> parseXmlWithregEx(String xml, Pattern pattern) {
+		ArrayList<String> list = new ArrayList<String>();
+
+		Matcher nameMatcher = pattern.matcher(xml);
+		while (nameMatcher.find()) {
+			String name = nameMatcher.group(1);
+			list.add(name.trim());
+		}
+		return list;
+	}
+
+	public boolean purgeSld(String styleName) throws IOException {
+		return deleteSld(styleName, true);
+	}
+
+	private HttpURLConnection sendREST(String method, String urlAppend,
+			Reader postDataReader, String contentType, String accept)
+			throws MalformedURLException, IOException {
+		boolean doOut = !METHOD_DELETE.equals(method) && postDataReader != null;
+		// boolean doIn = true; // !doOut
+
+		String link = restUrl + urlAppend;
+		URL url = new URL(link);
+		HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+		connection.setDoOutput(doOut);
+		// uc.setDoInput(false);
+		if (contentType != null && !"".equals(contentType)) {
+			connection.setRequestProperty("Content-type", contentType);
+			connection.setRequestProperty("Content-Type", contentType);
+		}
+		if (accept != null && !"".equals(accept)) {
+			connection.setRequestProperty("Accept", accept);
+		}
+
+		connection.setRequestMethod(method.toString());
+
+		if (isAuthorization()) {
+			String userPasswordEncoded = new BASE64Encoder().encode((username
+					+ ":" + password).getBytes());
+			connection.setRequestProperty("Authorization", "Basic "
+					+ userPasswordEncoded);
+		}
+
+		connection.connect();
+		if (connection.getDoOutput()) {
+			Writer writer = new OutputStreamWriter(connection.getOutputStream());
+			char[] buffer = new char[1024];
+
+			Reader reader = new BufferedReader(postDataReader);
+			int n;
+			while ((n = reader.read(buffer)) != -1) {
+				writer.write(buffer, 0, n);
+			}
+
+			writer.flush();
+			writer.close();
+		}
+		return connection;
+	}
+
+	private HttpURLConnection sendREST(String method, String urlEncoded,
+			String postData, String contentType, String accept)
+			throws MalformedURLException, IOException {
+		StringReader postDataReader = postData == null ? null
+				: new StringReader(postData);
+		return sendREST(method, urlEncoded, postDataReader, contentType, accept);
+	}
+
+	public int sendRESTint(String method, String url, String xmlPostContent)
+			throws IOException {
+		return sendRESTint(method, url, xmlPostContent, "application/xml",
+				"application/xml");
+	}
+
+	/**
+	 * @param method
+	 *            e.g. 'POST', 'GET', 'PUT' or 'DELETE'
+	 * @param urlEncoded
+	 *            e.g. '/workspaces' or '/workspaces.xml'
+	 * @param contentType
+	 *            format of postData, e.g. null or 'text/xml'
+	 * @param accept
+	 *            format of response, e.g. null or 'text/xml'
+	 * @param postData
+	 *            e.g. xml data
+	 * @throws IOException
+	 * @return null, or response of server
+	 */
+	public int sendRESTint(String method, String urlEncoded, String postData,
+			String contentType, String accept) throws IOException {
+		HttpURLConnection connection = sendREST(method, urlEncoded, postData,
+				contentType, accept);
+
+		String location = connection.getHeaderField("Location");
+
+		return connection.getResponseCode();
+	}
+
+	/**
+	 * @param method
+	 *            e.g. 'POST', 'GET', 'PUT' or 'DELETE'
+	 * @param urlEncoded
+	 *            e.g. '/workspaces' or '/workspaces.xml'
+	 * @param contentType
+	 *            format of postData, e.g. null or 'text/xml'
+	 * @param accept
+	 *            format of response, e.g. null or 'text/xml'
+	 * @param postData
+	 *            e.g. xml data
+	 * @return null, or location field of the response header
+	 */
+	public String sendRESTlocation(String method, String urlEncoded,
+			String postData, String contentType, String accept)
+			throws IOException {
+		HttpURLConnection connection = sendREST(method, urlEncoded, postData,
+				contentType, accept);
+
+		return connection.getHeaderField("Location");
+	}
+
+	/**
+	 * Sends a REST request and return the answer as a String.
+	 * 
+	 * @param method
+	 *            e.g. 'POST', 'GET', 'PUT' or 'DELETE'
+	 * @param urlEncoded
+	 *            e.g. '/workspaces' or '/workspaces.xml'
+	 * @param contentType
+	 *            format of postData, e.g. null or 'text/xml'
+	 * @param accept
+	 *            format of response, e.g. null or 'text/xml'
+	 * @param is
+	 *            where to read the data from
+	 * @throws IOException
+	 * @return null, or response of server
+	 */
+	public String sendRESTstring(String method, String urlEncoded, Reader is,
+			String contentType, String accept) throws IOException {
+		HttpURLConnection connection = sendREST(method, urlEncoded, is,
+				contentType, accept);
+
+		// Read response
+		InputStream in = connection.getInputStream();
+		try {
+
+			int len;
+			byte[] buf = new byte[1024];
+			StringBuffer sbuf = new StringBuffer();
+			while ((len = in.read(buf)) > 0) {
+				sbuf.append(new String(buf, 0, len));
+			}
+			return sbuf.toString();
+		} finally {
+			in.close();
+		}
+	}
+
+	public String sendRESTstring(String method, String url,
+			String xmlPostContent) throws IOException {
+		return sendRESTstring(method, url, xmlPostContent, "application/xml",
+				"application/xml");
+	}
+
+	/**
+	 * Sends a REST request and return the answer as a String
+	 * 
+	 * @param method
+	 *            e.g. 'POST', 'GET', 'PUT' or 'DELETE'
+	 * @param urlEncoded
+	 *            e.g. '/workspaces' or '/workspaces.xml'
+	 * @param contentType
+	 *            format of postData, e.g. null or 'text/xml'
+	 * @param accept
+	 *            format of response, e.g. null or 'text/xml'
+	 * @param postData
+	 *            e.g. xml data
+	 * @throws IOException
+	 * @return null, or response of server
+	 */
+	public String sendRESTstring(String method, String urlEncoded,
+			String postData, String contentType, String accept)
+			throws IOException {
+		HttpURLConnection connection = sendREST(method, urlEncoded, postData,
+				contentType, accept);
+
+		// Read response
+		InputStream in = connection.getInputStream();
+		try {
+
+			int len;
+			byte[] buf = new byte[1024];
+			StringBuffer sbuf = new StringBuffer();
+			while ((len = in.read(buf)) > 0) {
+				sbuf.append(new String(buf, 0, len));
+			}
+			return sbuf.toString();
+		} finally {
+			in.close();
+		}
+	}
+
 	/**
 	 * Works: curl -u admin:geoserver -v -XPUT -H 'Content-type:
 	 * application/zip' --data-binary @/home/stefan/Desktop/arabicData.zip
@@ -673,46 +742,5 @@ public class GsRest {
 		} finally {
 			os.close();
 		}
-	}
-
-	/**
-	 * This method does not upload a shapefile via zip. It rather creates a
-	 * reference to a Shapefile that has already exists in the GS data
-	 * directory.
-	 * 
-	 * @param charset
-	 *            defaults to UTF-8 if not set. Charset, that any text content
-	 *            is stored in.
-	 * 
-	 * @param relpath
-	 *            A path to the file, relative to gsdata dir, e.g.
-	 *            "data/water.shp"
-	 */
-	public boolean createCoverageGeoTiff(String workspace, String dsName,
-			String dsNamespace, String relpath, Configure autoConfig)
-			throws IOException {
-
-		if (relpath == null)
-			throw new IllegalArgumentException(
-					"parameter relpath may not be null");
-
-		if (autoConfig == null)
-			autoConfig = Configure.first;
-
-		String urlParamter = "<entry key=\"url\">" + relpath + "</entry>";
-
-		// String namespaceParamter = "<entry key=\"namespace\">" + dsName
-		// + "</entry>";
-
-		String typeParamter = "<type>GeoTIFF</type>";
-
-		String xml = "<coverageStore><name>" + dsName
-				+ "</name><enabled>true</enabled>" + typeParamter
-				+ "<connectionParameters>" + typeParamter + urlParamter
-				+ "</connectionParameters></coverageStore>";
-
-		int returnCode = sendRESTint(METHOD_POST, "/workspaces/" + workspace
-				+ "/coveragestores&configure=" + autoConfig.toString(), xml);
-		return 201 == returnCode;
 	}
 }
