@@ -11,7 +11,6 @@
 package org.geopublishing;
 
 import java.io.BufferedReader;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -295,16 +294,14 @@ public class GsRest {
 	}
 
 	/**
-	 * Deletes a workspace recursively. If the workspace doesn't exist it throws
-	 * an {@link IOException}. <code>false</code> is returned if the workspace
-	 * is not empty.
+	 * Deletes a workspace recursively. If the workspace could not be deleted
+	 * (e.g. didn't exist, or not recursively deleting and not empty) returns
+	 * <code>false</code>
 	 * 
 	 * @param wsName
 	 *            name of the workspace to delete, including all content.
-	 * @throws IOException
 	 */
-	public boolean deleteWorkspace(String wsName, boolean recursive)
-			throws IOException {
+	public boolean deleteWorkspace(String wsName, boolean recursive) {
 
 		try {
 
