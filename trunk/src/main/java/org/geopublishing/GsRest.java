@@ -300,8 +300,19 @@ public class GsRest {
 		return 201 == returnCode;
 	}
 
+	/**
+	 * 
+	 * @param wsName
+	 * @param dsName
+	 * @param ftName
+	 * @param srs
+	 *            EPSG:????
+	 * @param nativeWKT
+	 * @return
+	 * @throws IOException
+	 */
 	public boolean createFeatureType(String wsName, String dsName,
-			String ftName, String srs) throws IOException {
+			String ftName, String srs, String nativeWKT) throws IOException {
 
 		// "<entry key=\"namespace\"><name>" + dsName
 		// + "</name></entry>";
@@ -311,12 +322,15 @@ public class GsRest {
 
 		String enabledTag = "<enabled>" + true + "</enabled>";
 
-		String srsTag = "<srs>" + srs + "</srs>";
+		String srsTag = srs != null ? "<srs>" + srs + "</srs>" : "";
+
+		String nativeCrsTag = nativeWKT != null ? "<nativeCRS>" + nativeWKT
+				+ "</nativeCRS>" : "";
 
 		String prjPolTag = "<projectionPolicy>FORCE_DECLARED</projectionPolicy>";
 
 		String xml = "<featureType>" + nameTitleParam + srsTag + prjPolTag
-				+ enabledTag + "</featureType>";
+				+ enabledTag + nativeCrsTag + "</featureType>";
 
 		int sendRESTint = sendRESTint(METHOD_POST, "/workspaces/" + wsName
 				+ "/datastores/" + dsName + "/featuretypes", xml);
