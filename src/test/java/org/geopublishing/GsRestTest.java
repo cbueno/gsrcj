@@ -102,6 +102,8 @@ public class GsRestTest extends GsRest {
 
 	}
 
+	String nativeWktPoints = "GEOGCS[\"GCS_WGS_1984\",DATUM[\"D_WGS_1984\",SPHEROID[\"WGS_1984\",6378137,298.257223563]],PRIMEM[\"Greenwich\",0],UNIT[\"Degree\",0.017453292519943295]]";
+
 	@Test
 	public void testCreateDatastoreShapefile() throws IOException {
 		if (!GsTestingUtil.isAvailable())
@@ -118,7 +120,8 @@ public class GsRestTest extends GsRest {
 		assertTrue(created);
 
 		final String ftName = "points";
-		boolean created2 = createFeatureType("ws", dsName, ftName, "EPSG:32631");
+		boolean created2 = createFeatureType("ws", dsName, ftName,
+				"EPSG:32631", nativeWktPoints);
 		assertTrue(created2);
 
 		assertTrue(getFeatureTypes("ws", dsName).contains(ftName));
@@ -167,8 +170,10 @@ public class GsRestTest extends GsRest {
 				pointsShpUrl.toString(), "ISO-8859-1"));
 
 		final String ftName = "points";
-		assertTrue(createFeatureType("ws1", dsName, ftName, "EPSG:32631"));
-		assertTrue(createFeatureType("ws2", dsName, ftName, "EPSG:32631"));
+		assertTrue(createFeatureType("ws1", dsName, ftName, "EPSG:32631",
+				nativeWktPoints));
+		assertTrue(createFeatureType("ws2", dsName, ftName, "EPSG:32631",
+				nativeWktPoints));
 
 		assertTrue(getLayerNames().contains(ftName));
 
