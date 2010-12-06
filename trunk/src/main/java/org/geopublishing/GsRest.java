@@ -31,13 +31,23 @@ import sun.misc.BASE64Encoder;
 
 public class GsRest {
 
+	final static Pattern workspaceNameRegEx = Pattern.compile(
+			"<workspace>.*?<name>(.*?)</name>.*?</workspace>", Pattern.DOTALL);
 	final static Pattern datastoreNameRegEx = Pattern.compile(
 			"<dataStore>.*?<name>(.*?)</name>.*?</dataStore>", Pattern.DOTALL);
+	final static Pattern coverageNameRegEx = Pattern.compile(
+			"<coverage>.*?<name>(.*?)</name>.*?</coverage>", Pattern.DOTALL);
+	final static Pattern coverageStoreNameRegEx = Pattern.compile(
+			"<coverageStore>.*?<name>(.*?)</name>.*?</coverageStore>",
+			Pattern.DOTALL);
 	static final Pattern featuretypesNameRegEx = Pattern.compile(
 			"<featureType>.*?<name>(.*?)</name>.*?</featureType>",
 			Pattern.DOTALL + Pattern.MULTILINE);
 	final static Pattern layerNamesRegExPattern = Pattern.compile(
 			"<layer>.*?<name>(.*?)</name>.*?</layer>", Pattern.DOTALL
+					+ Pattern.MULTILINE);
+	final static Pattern coverageNamesRegExPattern = Pattern.compile(
+			"<coverage>.*?<name>(.*?)</name>.*?</coverage>", Pattern.DOTALL
 					+ Pattern.MULTILINE);
 	/**
 	 * <code>
@@ -113,42 +123,71 @@ public class GsRest {
 	/**
 	 * This method does not upload a shapefile via zip. It rather creates a
 	 * reference to a Shapefile that has already exists in the GS data
-	 * directory.
+	 * directory. <br/>
 	 * 
-	 * @param charset
-	 *            defaults to UTF-8 if not set. Charset, that any text content
-	 *            is stored in.
+	 * TODO: This is buggy and always puts the coveragestore in the default
+	 * workspace. Therefore we set the default workspace defore every command,
+	 * and reset it afterwards. This will change the default workspace for a
+	 * moment!
 	 * 
 	 * @param relpath
 	 *            A path to the file, relative to gsdata dir, e.g.
-	 *            "data/water.shp"
+	 *            "file:data/water.shp"
 	 */
-	public boolean createCoverageGeoTiff(String workspace, String dsName,
-			String dsNamespace, String relpath, Configure autoConfig)
+	public boolean createCoverageGeoTiff(String wsName, String csName,
+			String csNamespace, String relpath, Configure autoConfig)
 			throws IOException {
 
-		if (relpath == null)
-			throw new IllegalArgumentException(
-					"parameter relpath may not be null");
+		String oldDefault = getDefaultWs();
 
-		if (autoConfig == null)
-			autoConfig = Configure.first;
+		try {
+			setDefaultWs(wsName);
 
-		String urlParamter = "<entry key=\"url\">" + relpath + "</entry>";
+			if (relpath == null)
+				throw new IllegalArgumentException(
+						"parameter relpath may not be null");
 
-		// String namespaceParamter = "<entry key=\"namespace\">" + dsName
-		// + "</entry>";
+			if (autoConfig == null)
+				autoConfig = Configure.first;
 
-		String typeParamter = "<type>GeoTIFF</type>";
+			String urlParamter = "<url>" + relpath + "</url>";
 
-		String xml = "<coverageStore><name>" + dsName
-				+ "</name><enabled>true</enabled>" + typeParamter
-				+ "<connectionParameters>" + typeParamter + urlParamter
-				+ "</connectionParameters></coverageStore>";
+			// String namespaceParamter = "<entry key=\"namespace\">" + dsName
+			// + "</entry>";
 
-		int returnCode = sendRESTint(METHOD_POST, "/workspaces/" + workspace
-				+ "/coveragestores&configure=" + autoConfig.toString(), xml);
-		return 201 == returnCode;
+			String typeParamter = "<type>GeoTIFF</type>";
+
+			String xml = "<coverageStore><name>" + csName
+					+ "</name><enabled>true</enabled>" + typeParamter
+					+ urlParamter + "</coverageStore>";
+
+			int returnCode = sendRESTint(METHOD_POST, "/workspaces/" + wsName
+					+ "/coveragestores?configure=" + autoConfig.toString(), xml);
+			return 201 == returnCode;
+		} catch (IOException e) {
+			setDefaultWs(oldDefault);
+			throw e;
+		} finally {
+			reload();
+		}
+
+	}
+
+	public boolean setDefaultWs(String wsName) throws IOException {
+		String xml = "<workspace><name>" + wsName + "</name></workspace>";
+
+		return 200 == sendRESTint(METHOD_PUT, "/workspaces/default.xml", xml);
+	}
+
+	/**
+	 * Returns the name of the default workspace
+	 * 
+	 * @throws IOException
+	 */
+	public String getDefaultWs() throws IOException {
+		String xml = sendRESTstring(METHOD_GET, "/workspaces/default", null);
+		List<String> workspaces = parseXmlWithregEx(xml, workspaceNameRegEx);
+		return workspaces.get(0);
 	}
 
 	public boolean createDatastorePg(String workspace, String dsName,
@@ -195,15 +234,15 @@ public class GsRest {
 	 * 
 	 * @param relpath
 	 *            A path to the file, relative to gsdata dir, e.g.
-	 *            "data/water.shp"
+	 *            "file:data/water.shp"
 	 */
 	public boolean createDatastoreShapefile(String workspace, String dsName,
 			String dsNamespace, String relpath, String charset,
 			Boolean memoryMappedBuffer, Boolean createSpatialIndex,
 			Configure autoConfig) throws IOException {
 
-		if (autoConfig == null)
-			autoConfig = Configure.first;
+		if (autoConfig == Configure.first)
+			autoConfig = null;
 
 		if (relpath == null)
 			throw new IllegalArgumentException(
@@ -232,12 +271,15 @@ public class GsRest {
 				+ namespaceParamter + typeParamter
 				+ "</connectionParameters></dataStore>";
 
+		String configureParam = autoConfig == null ? "" : "?configure="
+				+ autoConfig.toString();
+
 		int returnCode = sendRESTint(METHOD_POST, "/workspaces/" + workspace
-				+ "/datastores?configure=" + autoConfig.toString(), xml);
+				+ "/datastores" + configureParam, xml);
 		return 201 == returnCode;
 	}
 
-	private boolean createDbDatastore(String workspace, String dsName,
+	public boolean createDbDatastore(String workspace, String dsName,
 			String dsNamespace, String host, String port, String db,
 			String user, String pwd, String dbType, boolean exposePKs)
 			throws IOException {
@@ -260,8 +302,13 @@ public class GsRest {
 
 	public boolean createFeatureType(String wsName, String dsName, String ftName)
 			throws IOException {
+
+		// "<entry key=\"namespace\"><name>" + dsName
+		// + "</name></entry>";
+
 		String xml = "<featureType><name>" + ftName + "</name><title>" + ftName
 				+ "</title></featureType>";
+
 		int sendRESTint = sendRESTint(METHOD_POST, "/workspaces/" + wsName
 				+ "/datastores/" + dsName + "/featuretypes", xml);
 		return 201 == sendRESTint;
@@ -310,12 +357,11 @@ public class GsRest {
 	 *            name of the datastore
 	 * @param recusively
 	 *            delete all contained featureytpes also
-	 * @throws IOException
 	 */
 	private boolean deleteDatastore(String wsName, String dsName,
 			boolean recusively) throws IOException {
 		if (recusively == true) {
-			List<String> layerNames = getLayersUsingDatastore(wsName, dsName);
+			List<String> layerNames = getLayersUsingStore(wsName, dsName);
 
 			for (String lName : layerNames) {
 				if (!deleteLayer(lName))
@@ -336,8 +382,49 @@ public class GsRest {
 	}
 
 	/**
-	 * Questionalble what is happening here?! Delete the Layers instead!?
+	 * Deletes a coveragestore
+	 * 
+	 * @param wsName
+	 *            name of the workspace
+	 * @param csName
+	 *            name of the coveragestore
+	 * @param recusively
+	 *            delete all contained coverages also
+	 * @throws IOException
 	 */
+	public boolean deleteCoveragestore(String wsName, String csName,
+			boolean recusively) throws IOException {
+		if (recusively == true) {
+			List<String> layerNames = getLayersUsingCoverageStore(wsName,
+					csName);
+
+			for (String lName : layerNames) {
+				if (!deleteLayer(lName))
+					throw new RuntimeException("Could not delete layer "
+							+ lName);
+			}
+
+			List<String> covNames = getCoverages(wsName, csName);
+			//
+			for (String ftName : covNames) {
+				// it happens that this returns false, e.g maybe for
+				// notpublished featuretypes!?
+				deleteCoverage(wsName, csName, ftName);
+			}
+		}
+		return 200 == sendRESTint(METHOD_DELETE, "/workspaces/" + wsName
+				+ "/coveragestores/" + csName, null);
+	}
+
+	public boolean deleteCoverage(String wsName, String csName, String covName)
+			throws IOException {
+
+		int result = sendRESTint(METHOD_DELETE, "/workspaces/" + wsName
+				+ "/coveragestores/" + csName + "/coverages/" + covName, null);
+
+		return result == 200;
+	}
+
 	public boolean deleteFeatureType(String wsName, String dsName, String ftName)
 			throws IOException {
 
@@ -364,7 +451,7 @@ public class GsRest {
 		if (purge == null)
 			purge = false;
 		int result = sendRESTint(METHOD_DELETE, "/styles/" + styleName
-				+ ".sld&purge=" + purge.toString(), null);
+				+ ".sld?purge=" + purge.toString(), null);
 		// + "&name=" + styleName
 		return result == 200;
 	}
@@ -394,24 +481,26 @@ public class GsRest {
 
 			if (recursive) {
 
-				// Check if the workspace exists and delete all datastores
+				reload();
+
+				// Selete all datastores
 				// recusively
-				String datastoresXml = sendRESTstring(METHOD_GET,
-						"/workspaces/" + wsName + "/datastores", null);
-				List<String> datastores = parseXmlWithregEx(datastoresXml,
-						datastoreNameRegEx);
+				List<String> datastores = getDatastores(wsName);
 				for (String dsName : datastores) {
 					if (!deleteDatastore(wsName, dsName, true))
-						throw new IOException("Could not delete Datastore "
+						throw new IOException("Could not delete dataStore "
 								+ dsName + " in workspace " + wsName);
 				}
 
-				// TODO NOT IMPLEMENETED YET
-				// String coveragestoresXml = sendRESTstring(METHOD_GET,
-				// "/workspaces/"
-				// + wsName + "/coveragestores", null);
-				// List<String> coveragestores =
-				// parseCoveragestoresXml(coveragestoresXml);
+				// Selete all datastores
+				// recusively
+				List<String> coveragestores = getCoveragestores(wsName);
+				for (String csName : coveragestores) {
+					if (!deleteCoveragestore(wsName, csName, true))
+						throw new IOException("Could not delete coverageStore "
+								+ csName + " in workspace " + wsName);
+				}
+
 			}
 
 			return 200 == sendRESTint(METHOD_DELETE, "/workspaces/" + wsName,
@@ -420,6 +509,37 @@ public class GsRest {
 			// Workspace didn't exist
 			return false;
 		}
+	}
+
+	/**
+	 * A list of coveragestores
+	 */
+	public List<String> getCoveragestores(String wsName) throws IOException {
+		String coveragesXml = sendRESTstring(METHOD_GET, "/workspaces/"
+				+ wsName + "/coveragestores.xml", null);
+		List<String> coveragestores = parseXmlWithregEx(coveragesXml,
+				coverageStoreNameRegEx);
+		return coveragestores;
+	}
+
+	/**
+	 * A list of datastorenames
+	 */
+	public List<String> getDatastores(String wsName) throws IOException {
+		String datastoresXml = sendRESTstring(METHOD_GET, "/workspaces/"
+				+ wsName + "/datastores", null);
+		List<String> datastores = parseXmlWithregEx(datastoresXml,
+				datastoreNameRegEx);
+		return datastores;
+	}
+
+	/**
+	 * A list of all workspaces
+	 */
+	public List<String> getWorkspaces() throws IOException {
+		String xml = sendRESTstring(METHOD_GET, "/workspaces", null);
+		List<String> workspaces = parseXmlWithregEx(xml, workspaceNameRegEx);
+		return workspaces;
 	}
 
 	/**
@@ -481,9 +601,51 @@ public class GsRest {
 		return parseXmlWithregEx(xml, layerNamesRegExPattern);
 	}
 
-	public List<String> getLayersUsingDatastore(String wsName, String dsName)
+	/**
+	 * Returns a list of all coverageNames inside a a coveragestore
+	 */
+	public List<String> getCoverages(String wsName, String csName)
 			throws IOException {
-		final Pattern pattern = Pattern
+		String xml = sendRESTstring(METHOD_GET, "/workspaces/" + wsName
+				+ "/coveragestores/" + csName + "/coverages", null);
+
+		return parseXmlWithregEx(xml, coverageNameRegEx);
+
+	}
+
+	/**
+	 * Returns a list of all layers using a specific dataStore
+	 */
+
+	public List<String> getLayersUsingCoverageStore(String wsName, String csName)
+			throws IOException {
+		final Pattern pattern = Pattern.compile(
+				"<layer>.*?<name>(.*?)</name>.*?/rest/workspaces/" + wsName
+						+ "/coveragestores/" + csName
+						+ "/coverages/.*?</layer>", Pattern.DOTALL
+						+ Pattern.MULTILINE);
+
+		List<String> coveragesUsingStore = new ArrayList<String>();
+		for (String cName : getLayerNames()) {
+			String xml = sendRESTstring(METHOD_GET, "/layers/" + cName, null);
+			// System.out.println(xml);
+
+			Matcher matcher = pattern.matcher(xml);
+			if (matcher.find())
+				coveragesUsingStore.add(cName);
+		}
+
+		return coveragesUsingStore;
+
+	}
+
+	/**
+	 * Returns a list of all layers using a specific dataStore
+	 */
+	public List<String> getLayersUsingStore(String wsName, String dsName)
+			throws IOException {
+
+		final Pattern layersUsingStoreRegEx = Pattern
 				.compile("<layer>.*?<name>(.*?)</name>.*?/rest/workspaces/"
 						+ wsName + "/datastores/" + dsName
 						+ "/featuretypes/.*?</layer>", Pattern.DOTALL
@@ -494,7 +656,7 @@ public class GsRest {
 			String xml = sendRESTstring(METHOD_GET, "/layers/" + lName, null);
 			// System.out.println(xml);
 
-			Matcher matcher = pattern.matcher(xml);
+			Matcher matcher = layersUsingStoreRegEx.matcher(xml);
 			if (matcher.find())
 				layersUsingDs.add(lName);
 		}
@@ -743,4 +905,28 @@ public class GsRest {
 			os.close();
 		}
 	}
+
+	/**
+	 * @throws IOException
+	 */
+	public boolean createCoverage(String wsName, String csName, String cName)
+			throws IOException {
+
+		// "<entry key=\"namespace\"><name>" + dsName
+		// + "</name></entry>";
+
+		String xml = "<coverage><name>" + cName + "</name><title>" + cName
+				+ "</title></coverage>";
+
+		int sendRESTint = sendRESTint(METHOD_POST, "/workspaces/" + wsName
+				+ "/coveragestores/" + csName + "/coverages", xml);
+
+		return 201 == sendRESTint;
+	}
+
+	public boolean reload() throws IOException {
+		int sendRESTint = sendRESTint(METHOD_POST, "/reload", null);
+		return 201 == sendRESTint;
+	}
+
 }
