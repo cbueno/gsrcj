@@ -45,20 +45,6 @@ public class GsRestTest extends GsRest {
 	}
 
 	@Test
-	public void testParseDatastoresXml() throws MalformedURLException,
-			ProtocolException, IOException {
-		if (!GsTestingUtil.isAvailable())
-			return;
-
-		deleteWorkspace("ws", true);
-		createWorkspace("ws");
-
-		assertTrue(createDatastorePg("ws", "ds", "http://foo.bar.de",
-				"localhost", "5432", "keck", "postgres", "secret", false));
-		System.out.println(getDatastore("ws", "ds"));
-	}
-
-	@Test
 	public void testSendSld() throws IOException {
 		if (!GsTestingUtil.isAvailable())
 			return;
@@ -75,7 +61,9 @@ public class GsRestTest extends GsRest {
 			return;
 
 		deleteWorkspace("ws", true);
+		assertFalse(getWorkspaces().contains("ws"));
 		createWorkspace("ws");
+		assertTrue(getWorkspaces().contains("ws"));
 
 		String styleName = "test_" + System.currentTimeMillis();
 		assertFalse(deleteSld(styleName + System.currentTimeMillis()));
@@ -96,8 +84,6 @@ public class GsRestTest extends GsRest {
 		// System.out.println("deleted existing XXX.sld : " + deletedSld);
 
 		assertFalse(deleteSld(styleName, true));
-
-		// PURGE IS NOT WORKING! :-(
 	}
 
 	@Test
@@ -105,25 +91,38 @@ public class GsRestTest extends GsRest {
 		if (!GsTestingUtil.isAvailable())
 			return;
 
-		final String dsName = "testShape" + System.currentTimeMillis();
+		final String dsName = "points";
+
+		deleteDatastore("ws", dsName, true);
+
+		URL pointsShpUrl = GsRestTest.class.getResource("/points.shp");
+		assertNotNull(pointsShpUrl);
+		assertEquals("file", pointsShpUrl.getProtocol());
+
 		boolean created = createDatastoreShapefile("ws", dsName, "http://test",
-				"file:data/ad2/soils.shp", "ISO-8859-1");
+				pointsShpUrl.toString(), "ISO-8859-1");
 		assertTrue(created);
 
-		final String ftName = "newtestftnmae.shp";
+		final String ftName = "points";
 		boolean created2 = createFeatureType("ws", dsName, ftName);
 		assertTrue(created2);
 
-		assertTrue("No featureType created after datastore creation",
-				getFeatureTypes("ws", dsName).contains(ftName));
+		assertTrue(getFeatureTypes("ws", dsName).contains(ftName));
 
+		assertTrue(getLayerNames().contains(ftName));
+
+		assertTrue(deleteLayer(ftName));
 		assertTrue(deleteFeatureType("ws", dsName, ftName));
 
+		assertFalse(getLayerNames().contains(ftName));
 		assertFalse(getFeatureTypes("ws", dsName).contains(ftName));
 	}
 
 	@Test
 	public void testCreateCoverageGeoTiff() throws IOException {
+		if (!GsTestingUtil.isAvailable())
+			return;
+
 		createWorkspace("another_maybedefault");
 		createWorkspace("ws");
 		final String csName = "testRaster_mean" + System.currentTimeMillis();
@@ -145,12 +144,16 @@ public class GsRestTest extends GsRest {
 
 	@Test
 	public void testGetStyles() throws IOException {
+		if (!GsTestingUtil.isAvailable())
+			return;
 		List<String> s = getStyles();
 		assertNotNull(s);
 	}
 
 	@Test
 	public void testSetDefaultWs() throws IOException {
+		if (!GsTestingUtil.isAvailable())
+			return;
 		createWorkspace("a");
 		setDefaultWs("a");
 		assertEquals("a", getDefaultWs());

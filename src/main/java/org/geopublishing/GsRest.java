@@ -358,10 +358,10 @@ public class GsRest {
 	 * @param recusively
 	 *            delete all contained featureytpes also
 	 */
-	private boolean deleteDatastore(String wsName, String dsName,
+	public boolean deleteDatastore(String wsName, String dsName,
 			boolean recusively) throws IOException {
 		if (recusively == true) {
-			List<String> layerNames = getLayersUsingStore(wsName, dsName);
+			List<String> layerNames = getLayersUsingDataStore(wsName, dsName);
 
 			for (String lName : layerNames) {
 				if (!deleteLayer(lName))
@@ -369,12 +369,14 @@ public class GsRest {
 							+ wsName + ":" + dsName + ":" + lName);
 			}
 
-			List<String> ftNames = getFeatureTypes(wsName, dsName);
-			//
-			for (String ftName : ftNames) {
-				// it happens that this returns false, e.g maybe for
-				// notpublished featuretypes!?
-				deleteFeatureType(wsName, dsName, ftName);
+			if (getDatastores(wsName).contains(dsName)) {
+				List<String> ftNames = getFeatureTypes(wsName, dsName);
+				//
+				for (String ftName : ftNames) {
+					// it happens that this returns false, e.g maybe for
+					// notpublished featuretypes!?
+					deleteFeatureType(wsName, dsName, ftName);
+				}
 			}
 		}
 		return 200 == sendRESTint(METHOD_DELETE, "/workspaces/" + wsName
@@ -434,7 +436,7 @@ public class GsRest {
 		return result == 200;
 	}
 
-	private boolean deleteLayer(String lName) throws IOException {
+	public boolean deleteLayer(String lName) throws IOException {
 		int result = sendRESTint(METHOD_DELETE, "/layers/" + lName, null);
 		return result == 200;
 	}
@@ -642,7 +644,7 @@ public class GsRest {
 	/**
 	 * Returns a list of all layers using a specific dataStore
 	 */
-	public List<String> getLayersUsingStore(String wsName, String dsName)
+	public List<String> getLayersUsingDataStore(String wsName, String dsName)
 			throws IOException {
 
 		final Pattern layersUsingStoreRegEx = Pattern
