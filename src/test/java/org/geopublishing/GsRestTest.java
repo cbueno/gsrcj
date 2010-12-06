@@ -1,5 +1,6 @@
 package org.geopublishing;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -104,30 +105,41 @@ public class GsRestTest extends GsRest {
 		if (!GsTestingUtil.isAvailable())
 			return;
 
-		boolean created = createDatastoreShapefile("ws",
-				"testShape" + System.currentTimeMillis(), "http://test",
+		final String dsName = "testShape" + System.currentTimeMillis();
+		boolean created = createDatastoreShapefile("ws", dsName, "http://test",
 				"file:data/ad2/soils.shp", "ISO-8859-1");
-
 		assertTrue(created);
 
-		assertTrue(createDatastoreShapefile("ws",
-				"testShape" + System.currentTimeMillis(), "http://test",
-				"file:data/ad2/soils.shp", "UTF-8"));
+		final String ftName = "newtestftnmae.shp";
+		boolean created2 = createFeatureType("ws", dsName, ftName);
+		assertTrue(created2);
+
+		assertTrue("No featureType created after datastore creation",
+				getFeatureTypes("ws", dsName).contains(ftName));
+
+		assertTrue(deleteFeatureType("ws", dsName, ftName));
+
+		assertFalse(getFeatureTypes("ws", dsName).contains(ftName));
 	}
 
 	@Test
 	public void testCreateCoverageGeoTiff() throws IOException {
-		boolean created = createCoverageGeoTiff("ws",
-				"testShape" + System.currentTimeMillis(), "http://test",
+		createWorkspace("another_maybedefault");
+		createWorkspace("ws");
+		final String csName = "testRaster_mean" + System.currentTimeMillis();
+		boolean created = createCoverageGeoTiff("ws", csName, "http://test",
 				"file:data/iida/raster_mean_utm200263259529/mean_utm2.tif",
-				Configure.all);
+				Configure.first);
 
 		assertTrue(created);
 
-		assertTrue(createCoverageGeoTiff("ws",
-				"testShape" + System.currentTimeMillis(), "http://test",
-				"file:data/iida/raster_mean_utm200263259529/mean_utm2.tif",
-				Configure.all));
+		assertTrue(createCoverage("ws", csName, csName));
+
+		assertTrue(getCoveragestores("ws").contains(csName));
+
+		deleteCoveragestore("ws", csName, true);
+
+		assertFalse(getCoveragestores("ws").contains(csName));
 
 	}
 
@@ -135,6 +147,18 @@ public class GsRestTest extends GsRest {
 	public void testGetStyles() throws IOException {
 		List<String> s = getStyles();
 		assertNotNull(s);
+	}
+
+	@Test
+	public void testSetDefaultWs() throws IOException {
+		createWorkspace("a");
+		setDefaultWs("a");
+		assertEquals("a", getDefaultWs());
+		createWorkspace("b");
+		assertEquals("a", getDefaultWs());
+		setDefaultWs("b");
+		assertEquals("b", getDefaultWs());
+
 	}
 
 }
