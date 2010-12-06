@@ -119,6 +119,33 @@ public class GsRestTest extends GsRest {
 	}
 
 	@Test
+	public void testCreateSameLayerInDifferentWorkspaces() throws IOException {
+		if (!GsTestingUtil.isAvailable())
+			return;
+
+		final String dsName = "points";
+
+		createWorkspace("ws1");
+		createWorkspace("ws2");
+
+		URL pointsShpUrl = GsRestTest.class.getResource("/points.shp");
+		assertNotNull(pointsShpUrl);
+		assertEquals("file", pointsShpUrl.getProtocol());
+
+		assertTrue(createDatastoreShapefile("ws1", dsName, "http://testWs1",
+				pointsShpUrl.toString(), "ISO-8859-1"));
+
+		assertTrue(createDatastoreShapefile("ws2", dsName, "http://testWs2",
+				pointsShpUrl.toString(), "ISO-8859-1"));
+
+		final String ftName = "points";
+		assertTrue(createFeatureType("ws1", dsName, ftName));
+		assertTrue(createFeatureType("ws2", dsName, ftName));
+
+		assertTrue(getLayerNames().contains(ftName));
+	}
+
+	@Test
 	public void testCreateCoverageGeoTiff() throws IOException {
 		if (!GsTestingUtil.isAvailable())
 			return;
@@ -132,14 +159,17 @@ public class GsRestTest extends GsRest {
 
 		assertTrue(created);
 
-		assertTrue(createCoverage("ws", csName, csName));
-
+		String cName = "mean_utm2";
 		assertTrue(getCoveragestores("ws").contains(csName));
 
+		assertTrue(createCoverage("ws", csName, cName));
+		assertTrue(getCoverages("ws", csName).contains(cName));
+
+		deleteCoverage("ws", csName, cName);
+		assertFalse(getCoverages("ws", csName).contains(cName));
+
 		deleteCoveragestore("ws", csName, true);
-
 		assertFalse(getCoveragestores("ws").contains(csName));
-
 	}
 
 	@Test
