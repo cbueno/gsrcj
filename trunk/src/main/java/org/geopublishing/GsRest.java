@@ -275,7 +275,7 @@ public class GsRest {
 				+ autoConfig.toString();
 
 		int returnCode = sendRESTint(METHOD_POST, "/workspaces/" + workspace
-				+ "/datastores" + configureParam, xml);
+				+ "/datastores.xml" + configureParam, xml);
 		return 201 == returnCode;
 	}
 
@@ -300,14 +300,23 @@ public class GsRest {
 		return 201 == returnCode;
 	}
 
-	public boolean createFeatureType(String wsName, String dsName, String ftName)
-			throws IOException {
+	public boolean createFeatureType(String wsName, String dsName,
+			String ftName, String srs) throws IOException {
 
 		// "<entry key=\"namespace\"><name>" + dsName
 		// + "</name></entry>";
 
-		String xml = "<featureType><name>" + ftName + "</name><title>" + ftName
-				+ "</title></featureType>";
+		String nameTitleParam = "<name>" + ftName + "</name><title>" + ftName
+				+ "</title>";
+
+		String enabledTag = "<enabled>" + true + "</enabled>";
+
+		String srsTag = "<srs>" + srs + "</srs>";
+
+		String prjPolTag = "<projectionPolicy>FORCE_DECLARED</projectionPolicy>";
+
+		String xml = "<featureType>" + nameTitleParam + srsTag + prjPolTag
+				+ enabledTag + "</featureType>";
 
 		int sendRESTint = sendRESTint(METHOD_POST, "/workspaces/" + wsName
 				+ "/datastores/" + dsName + "/featuretypes", xml);
@@ -326,6 +335,29 @@ public class GsRest {
 			throws IOException {
 
 		return null != createSld_location(stylename, sldString);
+	}
+
+	public boolean addStyleToLayer(String styleName, String layername)
+			throws IOException {
+		String xml = "<style><name>" + styleName + "</name></style>";
+		int result = sendRESTint(METHOD_POST, "/layers/" + layername
+				+ "/styles.xml", xml);
+		if (result != 201)
+			return false;
+
+		// if (asDefault) {
+		// xml = "<layer><defaultStyle><name>" + styleName
+		// + "</name></defaultStyle></layer>";
+		// return 201 == sendRESTint(METHOD_PUT, "/layers/" + layername, xml);
+		// }
+
+		return true;
+	}
+
+	public List<String> getStylesForLayer(String layername) throws IOException {
+		String xml = sendRESTstring(METHOD_GET, "/layers/" + layername
+				+ "/styles", null);
+		return parseXmlWithregEx(xml, stylesNameRegEx);
 	}
 
 	/**
@@ -368,10 +400,8 @@ public class GsRest {
 					throw new RuntimeException("Could not delete layer "
 							+ wsName + ":" + dsName + ":" + lName);
 			}
-
 			if (getDatastores(wsName).contains(dsName)) {
 				List<String> ftNames = getFeatureTypes(wsName, dsName);
-				//
 				for (String ftName : ftNames) {
 					// it happens that this returns false, e.g maybe for
 					// notpublished featuretypes!?
@@ -397,14 +427,7 @@ public class GsRest {
 	public boolean deleteCoveragestore(String wsName, String csName,
 			boolean recusively) throws IOException {
 		if (recusively == true) {
-			List<String> layerNames = getLayersUsingCoverageStore(wsName,
-					csName);
-
-			for (String lName : layerNames) {
-				if (!deleteLayer(lName))
-					throw new RuntimeException("Could not delete layer "
-							+ lName);
-			}
+			deleteLayersUsingCoveragestore(wsName, csName);
 
 			List<String> covNames = getCoverages(wsName, csName);
 			//
@@ -418,8 +441,20 @@ public class GsRest {
 				+ "/coveragestores/" + csName, null);
 	}
 
+	private void deleteLayersUsingCoveragestore(String wsName, String csName)
+			throws IOException {
+		List<String> layerNames = getLayersUsingCoverageStore(wsName, csName);
+
+		for (String lName : layerNames) {
+			if (!deleteLayer(lName))
+				throw new RuntimeException("Could not delete layer " + lName);
+		}
+	}
+
 	public boolean deleteCoverage(String wsName, String csName, String covName)
 			throws IOException {
+
+		deleteLayersUsingCoveragestore(wsName, csName);
 
 		int result = sendRESTint(METHOD_DELETE, "/workspaces/" + wsName
 				+ "/coveragestores/" + csName + "/coverages/" + covName, null);
@@ -427,13 +462,14 @@ public class GsRest {
 		return result == 200;
 	}
 
-	public boolean deleteFeatureType(String wsName, String dsName, String ftName)
-			throws IOException {
-
-		int result = sendRESTint(METHOD_DELETE, "/workspaces/" + wsName
-				+ "/datastores/" + dsName + "/featuretypes/" + ftName, null);
-
-		return result == 200;
+	public boolean deleteFeatureType(String wsName, String dsName, String ftName) {
+		try {
+			return sendRESTint(METHOD_DELETE, "/workspaces/" + wsName
+					+ "/datastores/" + dsName + "/featuretypes/" + ftName, null) == 200;
+		} catch (Exception e) {
+			e.printStackTrace();
+			return false;
+		}
 	}
 
 	public boolean deleteLayer(String lName) throws IOException {
@@ -459,14 +495,13 @@ public class GsRest {
 	}
 
 	/**
-	 * Deletes an empty workspace. If the workspace is not empty or doesn't
-	 * exist <code>false</code> is returned.
+	 * Deletes a workspace recursively.
 	 * 
 	 * @param wsName
-	 *            name of the workspace to delete
+	 *            name of the workspace to delete recursively.
 	 */
 	public boolean deleteWorkspace(String wsName) throws IOException {
-		return deleteWorkspace(wsName, false);
+		return deleteWorkspace(wsName, true);
 	}
 
 	/**
@@ -507,41 +542,66 @@ public class GsRest {
 
 			return 200 == sendRESTint(METHOD_DELETE, "/workspaces/" + wsName,
 					null, "application/xml", "application/xml");
-		} catch (IOException e) {
+		} catch (Exception e) {
+			e.printStackTrace();
 			// Workspace didn't exist
 			return false;
+		} finally {
+			try {
+				reload();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
 		}
+
 	}
 
 	/**
 	 * A list of coveragestores
 	 */
 	public List<String> getCoveragestores(String wsName) throws IOException {
-		String coveragesXml = sendRESTstring(METHOD_GET, "/workspaces/"
-				+ wsName + "/coveragestores.xml", null);
-		List<String> coveragestores = parseXmlWithregEx(coveragesXml,
-				coverageStoreNameRegEx);
-		return coveragestores;
+		try {
+			String coveragesXml = sendRESTstring(METHOD_GET, "/workspaces/"
+					+ wsName + "/coveragestores.xml", null);
+			List<String> coveragestores = parseXmlWithregEx(coveragesXml,
+					coverageStoreNameRegEx);
+			return coveragestores;
+
+		} catch (Exception e) {
+			e.printStackTrace();
+			return new ArrayList<String>();
+		}
 	}
 
 	/**
 	 * A list of datastorenames
 	 */
-	public List<String> getDatastores(String wsName) throws IOException {
-		String datastoresXml = sendRESTstring(METHOD_GET, "/workspaces/"
-				+ wsName + "/datastores", null);
-		List<String> datastores = parseXmlWithregEx(datastoresXml,
-				datastoreNameRegEx);
-		return datastores;
+	public List<String> getDatastores(String wsName) {
+		try {
+
+			String datastoresXml = sendRESTstring(METHOD_GET, "/workspaces/"
+					+ wsName + "/datastores.xml", null);
+			List<String> datastores = parseXmlWithregEx(datastoresXml,
+					datastoreNameRegEx);
+			return datastores;
+		} catch (Exception e) {
+			e.printStackTrace();
+			return new ArrayList<String>();
+		}
 	}
 
 	/**
 	 * A list of all workspaces
 	 */
-	public List<String> getWorkspaces() throws IOException {
-		String xml = sendRESTstring(METHOD_GET, "/workspaces", null);
-		List<String> workspaces = parseXmlWithregEx(xml, workspaceNameRegEx);
-		return workspaces;
+	public List<String> getWorkspaces() {
+		try {
+			String xml = sendRESTstring(METHOD_GET, "/workspaces", null);
+			List<String> workspaces = parseXmlWithregEx(xml, workspaceNameRegEx);
+			return workspaces;
+		} catch (IOException e) {
+			e.printStackTrace();
+			return new ArrayList<String>();
+		}
 	}
 
 	/**
@@ -584,12 +644,17 @@ public class GsRest {
 	 * @param dsName
 	 * @throws IOException
 	 */
-	public List<String> getFeatureTypes(String wsName, String dsName)
-			throws IOException {
-		String xml = sendRESTstring(METHOD_GET, "/workspaces/" + wsName
-				+ "/datastores/" + dsName + "/featuretypes", null);
+	public List<String> getFeatureTypes(String wsName, String dsName) {
+		try {
 
-		return parseXmlWithregEx(xml, featuretypesNameRegEx);
+			String xml = sendRESTstring(METHOD_GET, "/workspaces/" + wsName
+					+ "/datastores/" + dsName + "/featuretypes", null);
+
+			return parseXmlWithregEx(xml, featuretypesNameRegEx);
+		} catch (Exception e) {
+			e.printStackTrace();
+			return new ArrayList<String>();
+		}
 
 	}
 
@@ -606,12 +671,17 @@ public class GsRest {
 	/**
 	 * Returns a list of all coverageNames inside a a coveragestore
 	 */
-	public List<String> getCoverages(String wsName, String csName)
-			throws IOException {
-		String xml = sendRESTstring(METHOD_GET, "/workspaces/" + wsName
-				+ "/coveragestores/" + csName + "/coverages", null);
+	public List<String> getCoverages(String wsName, String csName) {
+		try {
 
-		return parseXmlWithregEx(xml, coverageNameRegEx);
+			String xml = sendRESTstring(METHOD_GET, "/workspaces/" + wsName
+					+ "/coveragestores/" + csName + "/coverages", null);
+
+			return parseXmlWithregEx(xml, coverageNameRegEx);
+		} catch (Exception e) {
+			e.printStackTrace();
+			return new ArrayList<String>();
+		}
 
 	}
 
@@ -619,52 +689,60 @@ public class GsRest {
 	 * Returns a list of all layers using a specific dataStore
 	 */
 
-	public List<String> getLayersUsingCoverageStore(String wsName, String csName)
-			throws IOException {
-		final Pattern pattern = Pattern.compile(
-				"<layer>.*?<name>(.*?)</name>.*?/rest/workspaces/" + wsName
-						+ "/coveragestores/" + csName
-						+ "/coverages/.*?</layer>", Pattern.DOTALL
-						+ Pattern.MULTILINE);
+	public List<String> getLayersUsingCoverageStore(String wsName, String csName) {
+		try {
 
-		List<String> coveragesUsingStore = new ArrayList<String>();
-		for (String cName : getLayerNames()) {
-			String xml = sendRESTstring(METHOD_GET, "/layers/" + cName, null);
-			// System.out.println(xml);
+			final Pattern pattern = Pattern.compile(
+					"<layer>.*?<name>(.*?)</name>.*?/rest/workspaces/" + wsName
+							+ "/coveragestores/" + csName
+							+ "/coverages/.*?</layer>", Pattern.DOTALL
+							+ Pattern.MULTILINE);
 
-			Matcher matcher = pattern.matcher(xml);
-			if (matcher.find())
-				coveragesUsingStore.add(cName);
+			List<String> coveragesUsingStore = new ArrayList<String>();
+			for (String cName : getLayerNames()) {
+				String xml = sendRESTstring(METHOD_GET, "/layers/" + cName,
+						null);
+				// System.out.println(xml);
+
+				Matcher matcher = pattern.matcher(xml);
+				if (matcher.find())
+					coveragesUsingStore.add(cName);
+			}
+
+			return coveragesUsingStore;
+		} catch (Exception e) {
+			e.printStackTrace();
+			return new ArrayList<String>();
 		}
-
-		return coveragesUsingStore;
-
 	}
 
 	/**
 	 * Returns a list of all layers using a specific dataStore
 	 */
-	public List<String> getLayersUsingDataStore(String wsName, String dsName)
-			throws IOException {
+	public List<String> getLayersUsingDataStore(String wsName, String dsName) {
+		try {
+			final Pattern layersUsingStoreRegEx = Pattern.compile(
+					"<layer>.*?<name>(.*?)</name>.*?/rest/workspaces/" + wsName
+							+ "/datastores/" + dsName
+							+ "/featuretypes/.*?</layer>", Pattern.DOTALL
+							+ Pattern.MULTILINE);
 
-		final Pattern layersUsingStoreRegEx = Pattern
-				.compile("<layer>.*?<name>(.*?)</name>.*?/rest/workspaces/"
-						+ wsName + "/datastores/" + dsName
-						+ "/featuretypes/.*?</layer>", Pattern.DOTALL
-						+ Pattern.MULTILINE);
+			List<String> layersUsingDs = new ArrayList<String>();
+			for (String lName : getLayerNames()) {
+				String xml = sendRESTstring(METHOD_GET, "/layers/" + lName,
+						null);
+				// System.out.println(xml);
 
-		List<String> layersUsingDs = new ArrayList<String>();
-		for (String lName : getLayerNames()) {
-			String xml = sendRESTstring(METHOD_GET, "/layers/" + lName, null);
-			// System.out.println(xml);
+				Matcher matcher = layersUsingStoreRegEx.matcher(xml);
+				if (matcher.find())
+					layersUsingDs.add(lName);
+			}
 
-			Matcher matcher = layersUsingStoreRegEx.matcher(xml);
-			if (matcher.find())
-				layersUsingDs.add(lName);
+			return layersUsingDs;
+		} catch (Exception e) {
+			e.printStackTrace();
+			return new ArrayList<String>();
 		}
-
-		return layersUsingDs;
-
 	}
 
 	/**
@@ -775,8 +853,6 @@ public class GsRest {
 			String contentType, String accept) throws IOException {
 		HttpURLConnection connection = sendREST(method, urlEncoded, postData,
 				contentType, accept);
-
-		String location = connection.getHeaderField("Location");
 
 		return connection.getResponseCode();
 	}
@@ -914,9 +990,6 @@ public class GsRest {
 	public boolean createCoverage(String wsName, String csName, String cName)
 			throws IOException {
 
-		// "<entry key=\"namespace\"><name>" + dsName
-		// + "</name></entry>";
-
 		String xml = "<coverage><name>" + cName + "</name><title>" + cName
 				+ "</title></coverage>";
 
@@ -927,8 +1000,8 @@ public class GsRest {
 	}
 
 	public boolean reload() throws IOException {
-		int sendRESTint = sendRESTint(METHOD_POST, "/reload", null);
-		return 201 == sendRESTint;
+		return 201 == sendRESTint(METHOD_POST, "/reload", null);
+		// return true;
 	}
 
 }

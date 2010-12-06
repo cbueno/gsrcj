@@ -12,6 +12,8 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.List;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 
@@ -20,6 +22,17 @@ public class GsRestTest extends GsRest {
 	public GsRestTest() {
 		super(GsTestingUtil.getUrl(), GsTestingUtil.getUsername(),
 				GsTestingUtil.getPassword());
+	}
+
+	@Before
+	public void before() throws IOException {
+		deleteWorkspace("ws");
+		createWorkspace("ws");
+	}
+
+	@After
+	public void after() throws IOException {
+		deleteWorkspace("ws");
 	}
 
 	/**
@@ -31,8 +44,8 @@ public class GsRestTest extends GsRest {
 		if (!GsTestingUtil.isAvailable())
 			return;
 
-		deleteWorkspace("ws", true);
-		createWorkspace("ws");
+		// deleteWorkspace("ws");
+		// createWorkspace("ws");
 
 		URL soilsZipFile = GsRestTest.class.getResource("/points.zip");
 		assertNotNull(soilsZipFile);
@@ -42,6 +55,7 @@ public class GsRestTest extends GsRest {
 				soilsZipFile);
 		System.out.println(r);
 
+		// deleteWorkspace("ws");
 	}
 
 	@Test
@@ -52,6 +66,7 @@ public class GsRestTest extends GsRest {
 		URL soilsSldFile = GsRestTest.class.getResource("/soils.sld");
 		String sldString = RestUtil.readURLasString(soilsSldFile);
 		assertTrue(createSld("test_" + System.currentTimeMillis(), sldString));
+
 	}
 
 	@Test
@@ -60,9 +75,9 @@ public class GsRestTest extends GsRest {
 		if (!GsTestingUtil.isAvailable())
 			return;
 
-		deleteWorkspace("ws", true);
-		assertFalse(getWorkspaces().contains("ws"));
-		createWorkspace("ws");
+		// deleteWorkspace("ws");
+		// assertFalse(getWorkspaces().contains("ws"));
+		// createWorkspace("ws");
 		assertTrue(getWorkspaces().contains("ws"));
 
 		String styleName = "test_" + System.currentTimeMillis();
@@ -84,6 +99,7 @@ public class GsRestTest extends GsRest {
 		// System.out.println("deleted existing XXX.sld : " + deletedSld);
 
 		assertFalse(deleteSld(styleName, true));
+
 	}
 
 	@Test
@@ -92,8 +108,6 @@ public class GsRestTest extends GsRest {
 			return;
 
 		final String dsName = "points";
-
-		deleteDatastore("ws", dsName, true);
 
 		URL pointsShpUrl = GsRestTest.class.getResource("/points.shp");
 		assertNotNull(pointsShpUrl);
@@ -104,12 +118,23 @@ public class GsRestTest extends GsRest {
 		assertTrue(created);
 
 		final String ftName = "points";
-		boolean created2 = createFeatureType("ws", dsName, ftName);
+		boolean created2 = createFeatureType("ws", dsName, ftName, "EPSG:32631");
 		assertTrue(created2);
 
 		assertTrue(getFeatureTypes("ws", dsName).contains(ftName));
 
 		assertTrue(getLayerNames().contains(ftName));
+
+		URL soilsSldFile = GsRestTest.class.getResource("/soils.sld");
+		String sldString = RestUtil.readURLasString(soilsSldFile);
+		final String stylename = "test_" + System.currentTimeMillis();
+		assertTrue(createSld(stylename, sldString));
+
+		assertEquals(0, getStylesForLayer(ftName).size());
+
+		assertTrue(addStyleToLayer(stylename, ftName));
+
+		assertTrue(getStylesForLayer(ftName).contains(stylename));
 
 		assertTrue(deleteLayer(ftName));
 		assertTrue(deleteFeatureType("ws", dsName, ftName));
@@ -119,12 +144,15 @@ public class GsRestTest extends GsRest {
 	}
 
 	@Test
+	@Ignore
 	public void testCreateSameLayerInDifferentWorkspaces() throws IOException {
 		if (!GsTestingUtil.isAvailable())
 			return;
 
 		final String dsName = "points";
 
+		assertTrue(deleteWorkspace("ws1"));
+		assertTrue(deleteWorkspace("ws2"));
 		createWorkspace("ws1");
 		createWorkspace("ws2");
 
@@ -139,10 +167,13 @@ public class GsRestTest extends GsRest {
 				pointsShpUrl.toString(), "ISO-8859-1"));
 
 		final String ftName = "points";
-		assertTrue(createFeatureType("ws1", dsName, ftName));
-		assertTrue(createFeatureType("ws2", dsName, ftName));
+		assertTrue(createFeatureType("ws1", dsName, ftName, "EPSG:32631"));
+		assertTrue(createFeatureType("ws2", dsName, ftName, "EPSG:32631"));
 
 		assertTrue(getLayerNames().contains(ftName));
+
+		assertTrue(deleteWorkspace("ws1"));
+		assertTrue(deleteWorkspace("ws2"));
 	}
 
 	@Test
@@ -150,26 +181,82 @@ public class GsRestTest extends GsRest {
 		if (!GsTestingUtil.isAvailable())
 			return;
 
+		URL geotiffUrl = GsRestTest.class.getResource("/geotiffwithsld.tif");
+		assertNotNull(geotiffUrl);
+		assertEquals("file", geotiffUrl.getProtocol());
+
 		createWorkspace("another_maybedefault");
-		createWorkspace("ws");
-		final String csName = "testRaster_mean" + System.currentTimeMillis();
-		boolean created = createCoverageGeoTiff("ws", csName, "http://test",
-				"file:data/iida/raster_mean_utm200263259529/mean_utm2.tif",
-				Configure.first);
 
-		assertTrue(created);
+		String wsName = "wsgeotiff";
+		deleteWorkspace(wsName);
+		createWorkspace(wsName);
 
-		String cName = "mean_utm2";
-		assertTrue(getCoveragestores("ws").contains(csName));
+		final String csName = wsName + "_" + "geotiffwithsld"
+				+ System.currentTimeMillis();
+		assertTrue(createCoverageGeoTiff(wsName, csName, "http://test",
+				geotiffUrl.toString(), Configure.first));
 
-		assertTrue(createCoverage("ws", csName, cName));
-		assertTrue(getCoverages("ws", csName).contains(cName));
+		String cName = "geotiffwithsld";
+		assertTrue(getCoveragestores(wsName).contains(csName));
 
-		deleteCoverage("ws", csName, cName);
-		assertFalse(getCoverages("ws", csName).contains(cName));
+		assertTrue(createCoverage(wsName, csName, cName));
+		assertTrue(getCoverages(wsName, csName).contains(cName));
 
-		deleteCoveragestore("ws", csName, true);
-		assertFalse(getCoveragestores("ws").contains(csName));
+		deleteCoverage(wsName, csName, cName);
+		assertFalse(getCoverages(wsName, csName).contains(cName));
+
+		deleteCoveragestore(wsName, csName, true);
+		assertFalse(getCoveragestores(wsName).contains(csName));
+
+		assertTrue(deleteWorkspace(wsName));
+		assertTrue(deleteWorkspace("another_maybedefault"));
+
+	}
+
+	@Test
+	@Ignore
+	public void testCreateSameCoverageInTwoWorkspaces() throws IOException {
+		if (!GsTestingUtil.isAvailable())
+			return;
+		URL geotiffUrl = GsRestTest.class.getResource("/geotiffwithsld.tif");
+		assertNotNull(geotiffUrl);
+		assertEquals("file", geotiffUrl.getProtocol());
+		final String csName = "geotiffwithsld" + System.currentTimeMillis();
+		String cName = "geotiffwithsld";
+
+		deleteWorkspace("ws1");
+		deleteWorkspace("ws2");
+
+		createWorkspace("ws1");
+		createWorkspace("ws2");
+
+		assertTrue(createCoverageGeoTiff("ws1", csName, "http://test1",
+				geotiffUrl.toString(), Configure.first));
+		assertTrue(getCoveragestores("ws1").contains(csName));
+
+		assertTrue(createCoverageGeoTiff("ws2", csName, "http://test2",
+				geotiffUrl.toString(), Configure.first));
+		assertTrue(getCoveragestores("ws2").contains(csName));
+
+		assertTrue(createCoverage("ws1", csName, cName));
+
+		reload();
+
+		assertTrue(getCoverages("ws1", csName).contains(cName));
+		assertTrue(createCoverage("ws2", csName, cName));
+		assertTrue(getCoverages("ws2", csName).contains(cName));
+
+		deleteCoverage("ws1", csName, cName);
+		assertFalse(getCoverages("ws1", csName).contains(cName));
+
+		deleteCoveragestore("ws1", csName, true);
+		assertFalse(getCoveragestores("ws1").contains(csName));
+		deleteCoveragestore("ws2", csName, true);
+		assertFalse(getCoveragestores("ws2").contains(csName));
+
+		assertTrue(deleteWorkspace("ws1"));
+		assertTrue(deleteWorkspace("ws2"));
+
 	}
 
 	@Test
@@ -192,6 +279,8 @@ public class GsRestTest extends GsRest {
 		setDefaultWs("b");
 		assertEquals("b", getDefaultWs());
 
+		deleteWorkspace("a");
+		deleteWorkspace("b");
 	}
 
 }
