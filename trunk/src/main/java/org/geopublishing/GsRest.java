@@ -31,6 +31,11 @@ import sun.misc.BASE64Encoder;
 
 public class GsRest {
 
+	@Override
+	public String toString() {
+		return "GsRest [restUrl=" + restUrl + ", username=" + username + "]";
+	}
+
 	final static Pattern workspaceNameRegEx = Pattern.compile(
 			"<workspace>.*?<name>(.*?)</name>.*?</workspace>", Pattern.DOTALL);
 	final static Pattern datastoreNameRegEx = Pattern.compile(
