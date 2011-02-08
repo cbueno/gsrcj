@@ -481,6 +481,11 @@ public class GsRest {
 		return result == 200;
 	}
 
+	/**
+	 * To avoid
+	 * "org.geoserver.rest.RestletException: java.lang.IllegalArgumentException: Unable to delete resource referenced by layer"
+	 * use deleteLayer first.
+	 */
 	public boolean deleteFeatureType(String wsName, String dsName, String ftName) {
 		try {
 			return sendRESTint(METHOD_DELETE, "/workspaces/" + wsName
@@ -491,9 +496,15 @@ public class GsRest {
 		}
 	}
 
-	public boolean deleteLayer(String lName) throws IOException {
-		int result = sendRESTint(METHOD_DELETE, "/layers/" + lName, null);
-		return result == 200;
+	public boolean deleteLayer(String lName) {
+		try {
+
+			int result = sendRESTint(METHOD_DELETE, "/layers/" + lName, null);
+			return result == 200;
+		} catch (Exception e) {
+			e.printStackTrace();
+			return false;
+		}
 	}
 
 	public boolean deleteSld(String styleName, Boolean... purge_)
