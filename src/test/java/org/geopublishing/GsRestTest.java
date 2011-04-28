@@ -136,6 +136,8 @@ public class GsRestTest extends GsRest {
 		assertEquals(0, getStylesForLayer(ftName).size());
 
 		assertTrue(addStyleToLayer(stylename, ftName));
+		assertTrue(addStyleToLayer(stylename, ftName, false));
+		assertTrue(addStyleToLayer(stylename, ftName, true));
 
 		assertTrue(getStylesForLayer(ftName).contains(stylename));
 
