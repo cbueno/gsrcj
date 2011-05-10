@@ -262,15 +262,49 @@ public class GsRest {
 		return 201 == returnCode;
 	}
 
+	// /**
+	// * Create a link between a PostGIS table and the given GeoServer datastore.<br/>
+	// *
+	// * Works: <code>curl -u admin:geoserver -v -XPOST -H 'Content-type:text/xml'</code>
+	// *
+	// * @param wsName
+	// * the GeoServer workspace name
+	// * @param dsName
+	// * the GeoServer datastore name
+	// * @param postGISTableName
+	// * the name of the PostGIS table to associate
+	// * @return <code>true</code> if uploaded, false otherwise
+	// * @throws IOException
+	// *
+	// * @author Eric Grosso, 10.5.2011
+	// */
+	// public boolean createfeatureTypePg(String wsName, String dsName, String postGISTableName) throws IOException {
+	//
+	// String xml = "<featureType><name>" + postGISTableName + "</name></featureType>";
+	//
+	// int sendRESTint = sendRESTint(METHOD_POST, "/workspaces/" + wsName + "/datastores/" + dsName + "/featuretypes",
+	// xml, "text/xml", null);
+	//
+	// return 201 == sendRESTint;
+	// }
+
 	/**
+	 * Create a <em>Featuretype</em> based on an existing datastore.
 	 * 
 	 * @param wsName
+	 *            the GeoServer workspace name
 	 * @param dsName
+	 *            the GeoServer datastore name
 	 * @param ftName
+	 *            the featureTypeName you want to create, e.g. the name of a PostGIS table or the name of a Shapefile
+	 *            (without .shp)
 	 * @param srs
-	 *            EPSG:????
+	 *            <code>null</code> or <code>EPSG:????</code> syntax.
 	 * @param nativeWKT
-	 * @return
+	 *            <code>null</code> or WKT declaration of the CRS.
+	 * 
+	 * @return <code>true</code> if the creation was successful.
+	 * 
 	 * @throws IOException
 	 */
 	public boolean createFeatureType(String wsName, String dsName, String ftName, String srs, String nativeWKT)
@@ -350,7 +384,6 @@ public class GsRest {
 		}
 		return true;
 	}
-
 
 	public List<String> getStylesForLayer(String layername) throws IOException {
 		String xml = sendRESTstring(METHOD_GET, "/layers/" + layername + "/styles", null);
@@ -931,7 +964,7 @@ public class GsRest {
 	 * @/home/stefan/Desktop/arabicData.zip http:/
 	 *                                      /localhost:8085/geoserver/rest/workspaces/ws/datastores/test1/file.shp
 	 */
-	protected String uploadShape(String workspace, String dsName, URL zip) throws IOException {
+	public String uploadShape(String workspace, String dsName, URL zip) throws IOException {
 
 		InputStream os = zip.openStream();
 		try {
@@ -962,7 +995,6 @@ public class GsRest {
 
 	public boolean reload() throws IOException {
 		return 201 == sendRESTint(METHOD_POST, "/reload", null);
-		// return true;
 	}
 
 }
