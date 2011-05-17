@@ -1,0 +1,176 @@
+<!-- Copyright (c) 2010 stefan. All rights reserved. This program and the 
+	accompanying materials are made available under the terms of the GNU Public 
+	License v3.0 which accompanies this distribution, and is available at http://www.gnu.org/licenses/old-licenses/gpl-3.0.html 
+	Contributors: stefan - initial API and implementation -->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<groupId>org.geopublishing</groupId>
+	<artifactId>gsrcj</artifactId>
+	<version>0.5-SNAPSHOT</version>
+	<packaging>jar</packaging>
+
+	<name>gsrcj</name>
+	<url>http://maven.apache.org</url>
+
+	<licenses>
+		<license>
+			<name>General Public License (GPL)</name>
+			<url>http://www.gnu.org/copyleft/gpl.txt</url>
+		</license>
+	</licenses>
+
+	<ciManagement>
+		<system>Hudson</system>
+		<url>http://hudson.wikisquare.de</url>
+	</ciManagement>
+
+	<issueManagement>
+		<system>Google code</system>
+		<url>http://code.google.com/p/gsrcj/issues</url>
+	</issueManagement>
+
+
+	<organization>
+		<name>Geopublishing</name>
+		<url>http://www.geopublishing.org</url>
+	</organization>
+
+	<scm>
+		<connection>scm:svn:http://gsrcj.googlecode.com/svn/trunk/</connection>
+		<developerConnection>scm:svn:https://gsrcj.googlecode.com/svn/trunk/
+		</developerConnection>
+		<url>scm:svn:https://gsrcj.googlecode.com/svn/trunk/</url>
+	</scm>
+
+	<developers>
+		<developer>
+			<id>alfonx</id>
+			<name>Stefan A. Tzeggai</name>
+			<email>tzeggai@wikisquare.de</email>
+			<roles>
+				<role>Project head</role>
+				<role>Developer</role>
+			</roles>
+		</developer>
+	</developers>
+
+	<properties>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+	</properties>
+
+
+	<dependencies>
+		<dependency>
+			<groupId>junit</groupId>
+			<artifactId>junit</artifactId>
+			<version>4.8.1</version>
+			<type>jar</type>
+			<scope>test</scope>
+		</dependency>
+	</dependencies>
+
+	<build>
+
+		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<version>2.2</version>
+
+				<configuration>
+					<source>1.5</source>
+					<target>1.5</target>
+				</configuration>
+			</plugin>
+
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-jar-plugin</artifactId>
+				<version>2.3.1</version>
+				<executions>
+					<execution>
+						<goals>
+							<goal>test-jar</goal>
+							<goal>jar</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+		</plugins>
+
+		<testResources>
+			<testResource>
+				<directory>src/test/resources</directory>
+				<filtering>false</filtering>
+				<excludes>
+					<exclude>**/*.java</exclude>
+					<exclude>**/*.svn*</exclude>
+					<exclude>**/*.cvs</exclude>
+					<exclude>**/*~</exclude>
+					<exclude>**/Thumbs.db</exclude>
+				</excludes>
+			</testResource>
+		</testResources>
+
+	</build>
+
+
+	<repositories>
+
+		<repository>
+			<snapshots>
+				<enabled>false</enabled>
+			</snapshots>
+			<id>central</id>
+			<name>libs-releases</name>
+			<url>http://artifactory.wikisquare.de/artifactory/libs-releases</url>
+		</repository>
+
+		<repository>
+			<snapshots />
+			<id>snapshots</id>
+			<name>libs-snapshots</name>
+			<url>http://artifactory.wikisquare.de/artifactory/libs-snapshots</url>
+		</repository>
+
+	</repositories>
+
+	<distributionManagement>
+
+		<repository>
+			<id>artifactory.wikisquare.de</id>
+			<name>artifactory.wikisquare.de-releases</name>
+			<url>http://artifactory.wikisquare.de/artifactory/libs-releases-local</url>
+		</repository>
+
+		<snapshotRepository>
+			<id>artifactory.wikisquare.de</id>
+			<name>artifactory.wikisquare.de-snapshots</name>
+			<url>http://artifactory.wikisquare.de/artifactory/libs-snapshots-local</url>
+		</snapshotRepository>
+
+	</distributionManagement>
+
+	<profiles>
+		<profile>
+			<!-- Disable tests when run on build mashine, sine tests require a GS 
+				at localhost -->
+			<id>gisbert</id>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-surefire-plugin</artifactId>
+						<version>2.6</version>
+						<configuration>
+							<skipTests>false</skipTests>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+	</profiles>
+
+</project>
