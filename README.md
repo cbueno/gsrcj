@@ -1,5 +1,5 @@
 # gsrcj
-Geoserver REST client in Java - Automatically exported from code.google.com/p/gsrcj
+Geoserver REST client in Java - Automatically exported from https://code.google.com/p/gsrcj
 
 A Java Client to the Geoserver 2.0.2+ RESTful configuration extension. Using this library, one can access a remote Geoserver via HTTP and configure it.
 
